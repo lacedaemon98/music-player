@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: music-player
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=sqlite:./data/musicplayer.db
+      - SESSION_SECRET=change-this-secret-in-production-12345
+      - LOG_LEVEL=info
+      - TZ=Asia/Ho_Chi_Minh
+      # AI API Key for DJ announcements (Gemini text generation)
+      # TTS uses browser Web Speech API (no server-side key needed)
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+    volumes:
+      # Persist database
+      - music-player-data:/app/data
+      # Mount offline music folder from host - add MP3/M4A files here!
+      - ./data/offline-music:/app/data/offline-music
+      # Mount public folder for static files (images, css, js) - changes reflect immediately
+      - ./public:/app/public
+      # Mount views folder for templates - changes reflect immediately
+      - ./views:/app/views
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  music-player-data:
+    driver: local

@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Player - Vote cho bài hát</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #0d47a1;
+      --secondary: #e3f2fd;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--secondary) 0%, #f5f5f5 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+
+    .navbar-custom {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 1rem 0;
+    }
+
+    .logo-container {
+      background-color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-img {
+      height: 45px;
+    }
+
+    .logo-container span {
+      font-size: 1.2rem;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .card {
+      background: white;
+      border: none;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+    }
+
+    .card-header-custom {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 1.25rem 1.5rem;
+      border-radius: 16px 16px 0 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Add Song Form */
+    .add-song-card {
+      border: 3px dashed var(--primary);
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 30%);
+      padding: 1.5rem;
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-group {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .input-group-text {
+      background: white;
+      border: none;
+      color: var(--primary);
+      font-size: 1.2rem;
+    }
+
+    .form-control {
+      border: none;
+      padding: 0.75rem 1rem;
+    }
+
+    .form-control:focus {
+      box-shadow: none;
+    }
+
+    /* Queue Item */
+    .queue-item {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: all 0.3s;
+    }
+
+    .queue-item:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+
+    .queue-item-thumbnail {
+      width: 120px;
+      height: 90px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .queue-item-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-item-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-item-meta {
+      color: #666;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .queue-item-added-by {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .queue-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .vote-badge {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+
+    .vote-badge:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+      border-color: white;
+    }
+
+    .vote-badge:active {
+      transform: scale(0.95);
+    }
+
+    /* Now Playing Card */
+    .now-playing-card {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      padding: 2rem;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(25, 118, 210, 0.3);
+      color: white;
+      text-align: center;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: sticky;
+      top: 20px;
+    }
+
+    .now-playing-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .now-playing-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .now-playing-artist {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #999;
+    }
+
+    .empty-state i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .spinning {
+      animation: spin 3s linear infinite;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+    }
+
+    /* Recently Played Items */
+    .recent-item {
+      background: #f8f9fa;
+      padding: 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.2s;
+    }
+
+    .recent-item:hover {
+      background: #e9ecef;
+      transform: translateX(5px);
+    }
+
+    .recent-item-thumbnail {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .recent-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .recent-item-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .recent-item-meta {
+      color: #666;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .recent-item-added-by {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* Chat Box */
+    .chat-box {
+      background: white;
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-container {
+      background: #f8f9fa;
+      border-radius: 15px;
+      overflow: hidden;
+      border: 1px solid #dee2e6;
+    }
+
+    .chat-messages {
+      height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: #e9ecef;
+      border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #adb5bd;
+      border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #6c757d;
+    }
+
+    .chat-message {
+      background: white;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      border-left: 3px solid var(--primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-message-username {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .chat-message-text {
+      color: #333;
+      font-size: 0.95rem;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+
+    .chat-message-time {
+      font-size: 0.75rem;
+      color: #999;
+      margin-top: 0.25rem;
+      display: block;
+    }
+
+    .chat-input-container {
+      background: white;
+      padding: 1rem;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .chat-input-container .form-control {
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .chat-input-container .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.1);
+    }
+
+    .chat-input-container .btn {
+      border-radius: 10px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-custom navbar-dark">
+    <div class="container-fluid">
+      <div class="navbar-brand">
+        <div class="logo-container">
+          <img src="/images/logo.png" alt="Trung Anh Group" class="logo-img">
+          <span><i class="bi bi-music-note-beamed"></i> Music Player</span>
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="text-white mb-1" style="font-size: 1.1rem;">
+          <strong id="navDisplayName">Đang tải...</strong>
+          <button class="btn btn-sm btn-outline-light ms-2" onclick="changeNickname()" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+            <i class="bi bi-pencil"></i> Đổi biệt danh
+          </button>
+        </div>
+        <div class="text-white mb-2" style="font-size: 0.9rem; opacity: 0.9;">
+          <i class="bi bi-hand-thumbs-up-fill"></i> Vote còn lại: <strong id="navRemainingVotes">-</strong> |
+          <i class="bi bi-music-note"></i> Thêm bài: <strong id="navRemainingAdds">-</strong>
+        </div>
+        <% if (user && user.is_admin) { %>
+          <a href="/admin" class="btn btn-sm btn-light me-2">
+            <i class="bi bi-shield-lock"></i> Admin
+          </a>
+        <% } %>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container-fluid mt-4 px-4">
+    <div class="row g-4">
+
+      <!-- Left Column: Queue -->
+      <div class="col-lg-8">
+
+        <!-- Queue Section -->
+        <div class="card">
+          <div class="card-header-custom">
+            <i class="bi bi-list-ul"></i>
+            Sảnh chờ (<span id="queueCount">0</span>)
+          </div>
+          <div class="card-body p-4">
+
+            <!-- Add Song Form -->
+            <div class="add-song-card">
+              <h6 class="mb-3" style="color: var(--primary-dark); font-weight: 700;">
+                <i class="bi bi-plus-circle-fill"></i> Thêm bài hát mới
+              </h6>
+              <form id="addSongForm" onsubmit="addSongToQueue(event)">
+                <div class="input-group input-group-lg mb-3">
+                  <span class="input-group-text">
+                    <i class="bi bi-youtube"></i>
+                  </span>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="youtubeUrl"
+                    placeholder="Ê nhập link YouTube vào đây"
+                    required
+                  >
+                </div>
+
+                <!-- Dedication Message Textarea -->
+                <div class="mb-3">
+                  <label for="dedicationMessage" class="form-label" style="font-weight: 600; font-size: 0.9rem;">
+                    <i class="bi bi-chat-heart"></i> Lời nhắn gửi (không bắt buộc)
+                  </label>
+                  <textarea
+                    class="form-control"
+                    id="dedicationMessage"
+                    placeholder="Ví dụ: Tặng bạn An thân mến, chúc sinh nhật vui vẻ!"
+                    rows="2"
+                    maxlength="500"
+                    style="border-radius: 10px; resize: none;"
+                  ></textarea>
+                  <small class="text-muted">
+                    <span id="messageCounter">0</span>/500 ký tự
+                  </small>
+                </div>
+
+                <button class="btn btn-primary px-4 w-100" type="submit" id="btnAddSong">
+                  <i class="bi bi-plus-lg"></i> Thêm bài hát
+                </button>
+              </form>
+            </div>
+
+            <!-- Queue List -->
+            <div id="queueContainer"></div>
+
+          </div>
+        </div>
+
+        <!-- Recently Played Section -->
+        <div class="card mt-4">
+          <div class="card-header-custom">
+            <i class="bi bi-clock-history"></i>
+            Đã phát gần đây
+          </div>
+          <div class="card-body p-4">
+            <div id="recentlyPlayedContainer"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Now Playing -->
+      <div class="col-lg-4">
+        <div class="now-playing-card" id="nowPlaying">
+          <i class="bi bi-music-note-beamed now-playing-icon" style="opacity: 0.5;"></i>
+          <div class="now-playing-title">Chưa phát bài nào</div>
+        </div>
+
+        <!-- Chat Box -->
+        <div class="chat-box mt-4">
+          <h5 class="mb-3" style="font-weight: 700; color: var(--primary);">
+            <i class="bi bi-chat-dots"></i> Chat
+          </h5>
+
+          <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+                <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+              </div>
+            </div>
+
+            <div class="chat-input-container">
+              <form id="chatForm" onsubmit="sendMessage(event)">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="chatInput"
+                    placeholder="Nhập tin nhắn..."
+                    maxlength="500"
+                    autocomplete="off"
+                    required
+                  >
+                  <button class="btn btn-primary" type="submit" id="btnSendMessage">
+                    <i class="bi bi-send-fill"></i>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    socket.on('connect', () => {
+      console.log('[Public] Socket connected:', socket.id);
+    });
+
+    socket.on('queue_updated', () => {
+      loadQueue();
+      loadRecentlyPlayed();
+    });
+
+    socket.on('recently_played_updated', () => loadRecentlyPlayed());
+
+    // Handle play_song event from admin/scheduler
+    socket.on('play_song', (data) => {
+      console.log('[Public] Received play_song event:', data);
+
+      if (data.song) {
+        document.getElementById('nowPlaying').innerHTML = `
+          <i class="bi bi-disc-fill now-playing-icon spinning"></i>
+          <div class="now-playing-title">${data.song.title}</div>
+          <div class="now-playing-artist">${data.song.artist || 'Unknown Artist'}</div>
+        `;
+      }
+    });
+
+    // Handle song playing update event - show now playing
+    socket.on('song_playing_update', (data) => {
+      console.log('[Public] Received song_playing_update event:', data);
+
+      if (data.song) {
+        document.getElementById('nowPlaying').innerHTML = `
+          <i class="bi bi-disc-fill now-playing-icon spinning"></i>
+          <div class="now-playing-title">${data.song.title}</div>
+          <div class="now-playing-artist">${data.song.artist || 'Unknown Artist'}</div>
+        `;
+      }
+    });
+
+    // Handle song end event - clear now playing
+    socket.on('song_ended', () => {
+      console.log('[Public] Song ended, clearing now playing');
+      document.getElementById('nowPlaying').innerHTML = `
+        <i class="bi bi-music-note-beamed now-playing-icon" style="opacity: 0.5;"></i>
+        <div class="now-playing-title">Chưa phát bài nào</div>
+      `;
+    });
+
+    async function loadQueue() {
+      const res = await fetch('/api/songs/queue');
+      const data = await res.json();
+      document.getElementById('queueCount').textContent = data.songs.length;
+
+      if (data.songs.length === 0) {
+        document.getElementById('queueContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <p>Chưa có bài hát nào trong sảnh chờ</p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('queueContainer').innerHTML = data.songs.map(s => `
+        <div class="queue-item">
+          <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="queue-item-thumbnail" alt="${s.title}">
+          <div class="queue-item-content">
+            <div class="queue-item-title" title="${s.title}">${s.title}</div>
+            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <i class="bi bi-mic-fill"></i> ${s.artist || 'Unknown Artist'}
+            </div>
+            <div class="queue-item-meta">
+              <div class="queue-item-added-by">
+                <i class="bi bi-person-circle"></i>
+                <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
+              </div>
+              ${s.dedication_message ? `
+                <div class="queue-item-dedication" title="${s.dedication_message}">
+                  <i class="bi bi-chat-heart-fill" style="color: #ff6b6b;"></i>
+                  <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message.length > 50 ? s.dedication_message.substring(0, 50) + '...' : s.dedication_message}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="queue-item-actions">
+            <div class="vote-badge" onclick="toggleVote(${s.id})" title="Click để vote">
+              <i class="bi bi-hand-thumbs-up-fill"></i>
+              <span>${s.vote_count}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadRecentlyPlayed() {
+      const res = await fetch('/api/songs/recently-played');
+      const data = await res.json();
+
+      if (data.songs.length === 0) {
+        document.getElementById('recentlyPlayedContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-clock-history"></i>
+            <p>Chưa phát bài nào</p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('recentlyPlayedContainer').innerHTML = data.songs.map(s => `
+        <div class="recent-item">
+          <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="recent-item-thumbnail" alt="${s.title}">
+          <div class="recent-item-info">
+            <div class="recent-item-title" title="${s.title}">${s.title}</div>
+            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <i class="bi bi-mic-fill"></i> ${s.artist || 'Unknown Artist'}
+            </div>
+            <div class="recent-item-meta">
+              <div class="recent-item-added-by">
+                <i class="bi bi-person-circle"></i>
+                <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function getUserInfo() {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+
+        if (data.id) {
+          // Update navbar info
+          document.getElementById('navDisplayName').textContent = data.display_name;
+          document.getElementById('navRemainingVotes').textContent = data.remaining_votes;
+          document.getElementById('navRemainingAdds').textContent = data.remaining_adds;
+
+          // Store for later use
+          window.userId = data.id;
+          window.userRemainingAdds = data.remaining_adds;
+          window.userRemainingVotes = data.remaining_votes;
+
+          console.log(`[Public] User info loaded: ${data.display_name}, votes: ${data.remaining_votes}, adds: ${data.remaining_adds}`);
+        }
+      } catch (error) {
+        console.error('[Public] Error loading user info:', error);
+        document.getElementById('navDisplayName').textContent = 'Lỗi tải thông tin';
+        document.getElementById('navRemainingVotes').textContent = '?';
+        document.getElementById('navRemainingAdds').textContent = '?';
+      }
+    }
+
+    async function changeNickname() {
+      const newName = prompt('Nhập biệt danh mới:');
+      if (!newName || newName.trim() === '') {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/nickname', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: newName.trim() })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          getUserInfo();
+          alert('✅ Đã đổi biệt danh thành: ' + newName.trim());
+        } else {
+          alert('❌ Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Public] Error changing nickname:', error);
+        alert('❌ Không thể đổi biệt danh');
+      }
+    }
+
+    async function toggleVote(id) {
+      // Ask for confirmation before voting
+      const confirmed = confirm('Bạn có muốn vote cho bài này không?');
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/votes/${id}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          getUserInfo();
+          loadQueue();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Public] Error voting:', error);
+        alert('Không thể vote');
+      }
+    }
+
+    async function addSongToQueue(event) {
+      event.preventDefault();
+
+      const urlInput = document.getElementById('youtubeUrl');
+      const messageInput = document.getElementById('dedicationMessage');
+      const url = urlInput.value.trim();
+      const message = messageInput.value.trim();
+      const btnAddSong = document.getElementById('btnAddSong');
+
+      if (!url) {
+        alert('Vui lòng nhập YouTube URL');
+        return;
+      }
+
+      btnAddSong.disabled = true;
+      btnAddSong.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang thêm...';
+
+      try {
+        const res = await fetch('/api/songs/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            youtube_url: url,
+            dedication_message: message || null
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          urlInput.value = '';
+          messageInput.value = '';
+          document.getElementById('messageCounter').textContent = '0';
+          loadQueue();
+          getUserInfo();
+          alert(`✅ Đã thêm: ${data.song.title}`);
+        } else {
+          alert('❌ Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Public] Error adding song:', error);
+        alert('❌ Không thể thêm bài hát. Vui lòng thử lại.');
+      } finally {
+        btnAddSong.disabled = false;
+        btnAddSong.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm bài hát';
+      }
+    }
+
+    // Character counter for dedication message
+    document.getElementById('dedicationMessage').addEventListener('input', function() {
+      document.getElementById('messageCounter').textContent = this.value.length;
+    });
+
+    async function loadCurrentSong() {
+      try {
+        const res = await fetch('/api/playback/current');
+        const data = await res.json();
+
+        if (data.success && data.song) {
+          console.log('[Public] Current song is playing:', data.song);
+          document.getElementById('nowPlaying').innerHTML = `
+            <i class="bi bi-disc-fill now-playing-icon spinning"></i>
+            <div class="now-playing-title">${data.song.title}</div>
+            <div class="now-playing-artist">${data.song.artist || 'Unknown Artist'}</div>
+          `;
+        } else {
+          console.log('[Public] No song currently playing');
+          document.getElementById('nowPlaying').innerHTML = `
+            <i class="bi bi-music-note-beamed now-playing-icon" style="opacity: 0.5;"></i>
+            <div class="now-playing-title">Chưa phát bài nào</div>
+          `;
+        }
+      } catch (error) {
+        console.error('[Public] Error loading current song:', error);
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    // ============= CHAT FUNCTIONS =============
+
+    // Format message time (show date if not today)
+    function formatMessageTime(dateStr) {
+      const msgDate = new Date(dateStr);
+      const today = new Date();
+
+      // Check if message is from today
+      const isToday = msgDate.toDateString() === today.toDateString();
+
+      if (isToday) {
+        return msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        // Show date + time
+        return msgDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' +
+               msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    // Load chat messages
+    async function loadMessages() {
+      try {
+        const res = await fetch('/api/chat/messages');
+        const data = await res.json();
+
+        if (data.success) {
+          const container = document.getElementById('chatMessages');
+
+          if (data.messages.length === 0) {
+            container.innerHTML = `
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+                <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = data.messages.map(msg => {
+            const timeStr = formatMessageTime(msg.created_at);
+
+            return `
+              <div class="chat-message" data-message-id="${msg.id}">
+                <div class="chat-message-username">${msg.username}</div>
+                <div class="chat-message-text">${escapeHtml(msg.message)}</div>
+                <span class="chat-message-time">${timeStr}</span>
+              </div>
+            `;
+          }).join('');
+
+          // Scroll to bottom
+          scrollChatToBottom();
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    }
+
+    // Send message
+    async function sendMessage(event) {
+      event.preventDefault();
+
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      try {
+        const res = await fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          input.value = ''; // Clear input
+          // Message will be added via Socket.io event
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Lỗi gửi tin nhắn rồi bạn ơi');
+      }
+    }
+
+    // Add new message to chat (from Socket.io)
+    function addMessageToChat(msg) {
+      const container = document.getElementById('chatMessages');
+
+      // Remove empty state if present
+      const emptyState = container.querySelector('.text-center');
+      if (emptyState) {
+        container.innerHTML = '';
+      }
+
+      const timeStr = formatMessageTime(msg.created_at);
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'chat-message';
+      messageDiv.setAttribute('data-message-id', msg.id);
+      messageDiv.innerHTML = `
+        <div class="chat-message-username">${msg.username}</div>
+        <div class="chat-message-text">${escapeHtml(msg.message)}</div>
+        <span class="chat-message-time">${timeStr}</span>
+      `;
+
+      container.appendChild(messageDiv);
+      scrollChatToBottom();
+    }
+
+    // Remove message from UI (when admin deletes)
+    function removeMessageFromUI(messageId) {
+      const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageDiv) {
+        messageDiv.remove();
+
+        // Check if empty
+        const container = document.getElementById('chatMessages');
+        if (container.children.length === 0) {
+          container.innerHTML = `
+            <div class="text-center text-muted py-3">
+              <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+              <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Scroll chat to bottom
+    function scrollChatToBottom() {
+      const container = document.getElementById('chatMessages');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Listen for new messages from Socket.io
+    socket.on('new_message', (data) => {
+      addMessageToChat(data);
+    });
+
+    // Listen for message deleted event
+    socket.on('message_deleted', (data) => {
+      removeMessageFromUI(data.id);
+    });
+
+    // Initialize
+    loadQueue();
+    loadRecentlyPlayed();
+    getUserInfo();
+    loadCurrentSong();
+    loadMessages();
+  </script>
+</body>
+</html>

@@ -1,0 +1,2345 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trang Admin - Music Player</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #0d47a1;
+      --secondary: #e3f2fd;
+      --danger: #d32f2f;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--secondary) 0%, #f5f5f5 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+
+    .navbar-custom {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 1rem 0;
+    }
+
+    .logo-container {
+      background-color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-img {
+      height: 45px;
+    }
+
+    .logo-container span {
+      font-size: 1.2rem;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .card {
+      background: white;
+      border: none;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+    }
+
+    .card-header-custom {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 1.25rem 1.5rem;
+      border-radius: 16px 16px 0 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Add Song Form */
+    .add-song-card {
+      border: 3px dashed var(--primary);
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 30%);
+      padding: 1.5rem;
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-group {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .input-group-text {
+      background: white;
+      border: none;
+      color: var(--primary);
+      font-size: 1.2rem;
+    }
+
+    .form-control {
+      border: none;
+      padding: 0.75rem 1rem;
+    }
+
+    .form-control:focus {
+      box-shadow: none;
+    }
+
+    /* Queue Item */
+    .queue-item {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: all 0.3s;
+    }
+
+    .queue-item:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+
+    .queue-item-thumbnail {
+      width: 120px;
+      height: 90px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .queue-item-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-item-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-item-meta {
+      color: #666;
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .queue-item-added-by {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .queue-item-dedication {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      background: #fff5f5;
+      border-radius: 6px;
+      margin-top: 0.25rem;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-item-dedication i {
+      flex-shrink: 0;
+    }
+
+    .queue-item-dedication span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .vote-badge {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+
+    .vote-badge:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+      border-color: white;
+    }
+
+    .vote-badge:active {
+      transform: scale(0.95);
+    }
+
+    .btn-delete {
+      background: linear-gradient(135deg, #ef5350 0%, var(--danger) 100%);
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+
+    .btn-delete:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(211, 47, 47, 0.4);
+    }
+
+    /* Recently Played List */
+    .recent-item {
+      background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.2s;
+    }
+
+    .recent-item:hover {
+      background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%);
+      transform: translateX(4px);
+    }
+
+    .recent-item-thumbnail {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .recent-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .recent-item-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 0.25rem;
+    }
+
+    .recent-item-meta {
+      color: #666;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .recent-item-added-by {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .btn-delete-small {
+      background: var(--danger);
+      border: none;
+      color: white;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn-delete-small:hover {
+      background: #b71c1c;
+      transform: scale(1.05);
+    }
+
+    /* Audio Player */
+    .audio-player {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      padding: 2rem;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(25, 118, 210, 0.3);
+      color: white;
+      position: sticky;
+      top: 20px;
+    }
+
+    .now-playing-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress-bar-container {
+      background: rgba(255, 255, 255, 0.3);
+      height: 8px;
+      border-radius: 10px;
+      cursor: pointer;
+      position: relative;
+      overflow: visible;
+      margin-bottom: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .progress-bar-container:hover {
+      height: 12px;
+    }
+
+    .progress-bar-fill {
+      background: white;
+      height: 100%;
+      border-radius: 10px;
+      width: 0%;
+      position: relative;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+      transition: width 0.1s;
+    }
+
+    .progress-bar-fill::after {
+      content: '';
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .progress-bar-container:hover .progress-bar-fill::after {
+      opacity: 1;
+    }
+
+    .time-display {
+      font-size: 0.85rem;
+      font-family: 'Courier New', monospace;
+      opacity: 0.9;
+    }
+
+    .player-controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
+
+    .player-button {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 2px solid white;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .player-button:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .player-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .volume-control, .output-device {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+
+    .form-range::-webkit-slider-thumb {
+      background: white;
+      border: 2px solid var(--primary);
+    }
+
+    .form-select {
+      background: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .spinning {
+      animation: spin 3s linear infinite;
+    }
+
+    /* Inactive Overlay */
+    #inactiveOverlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      backdrop-filter: blur(10px);
+    }
+
+    .overlay-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+      max-width: 500px;
+      padding: 2rem;
+    }
+
+    .btn-takeover {
+      background: linear-gradient(135deg, #ef5350 0%, var(--danger) 100%);
+      border: none;
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+      box-shadow: 0 4px 16px rgba(211, 47, 47, 0.4);
+    }
+
+    .btn-takeover:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(211, 47, 47, 0.6);
+    }
+
+    /* Schedule Card */
+    .schedule-item {
+      background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #999;
+    }
+
+    .empty-state i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+
+    /* Chat Box */
+    .chat-box {
+      background: white;
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-container {
+      background: #f8f9fa;
+      border-radius: 15px;
+      overflow: hidden;
+      border: 1px solid #dee2e6;
+    }
+
+    .chat-messages {
+      height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: #e9ecef;
+      border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #adb5bd;
+      border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #6c757d;
+    }
+
+    .chat-message {
+      background: white;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      border-left: 3px solid var(--primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-message-username {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .chat-message-text {
+      color: #333;
+      font-size: 0.95rem;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+
+    .chat-message-time {
+      font-size: 0.75rem;
+      color: #999;
+      margin-top: 0.25rem;
+      display: block;
+    }
+
+    .chat-input-container {
+      background: white;
+      padding: 1rem;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .chat-input-container .form-control {
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .chat-input-container .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.1);
+    }
+
+    .chat-input-container .btn {
+      border-radius: 10px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Inactive Tab Overlay -->
+  <div id="inactiveOverlay">
+    <div class="overlay-content">
+      <i class="bi bi-exclamation-triangle-fill" style="font-size: 4rem; margin-bottom: 20px;"></i>
+      <h2>Tab Không Hoạt Động</h2>
+      <p style="font-size: 1.1rem; margin-top: 1rem;">
+        Admin panel đã được mở ở tab/thiết bị khác.<br>
+        <strong>Chỉ cho phép 1 admin panel hoạt động cùng lúc.</strong>
+      </p>
+      <p class="mt-4 mb-4">
+        Nếu bạn muốn sử dụng tab này, click nút bên dưới để chiếm quyền điều khiển.
+      </p>
+      <button class="btn btn-takeover" onclick="takeoverAdmin()">
+        <i class="bi bi-shield-fill-exclamation"></i> Chiếm Quyền Admin
+      </button>
+      <div class="mt-3">
+        <small>Tab khác sẽ bị ngắt kết nối</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-custom navbar-dark">
+    <div class="container-fluid">
+      <div class="navbar-brand">
+        <div class="logo-container">
+          <img src="/images/logo.png" alt="Trung Anh Group" class="logo-img">
+          <span><i class="bi bi-music-note-beamed"></i> Trang Admin</span>
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="text-white mb-1" style="font-size: 1.1rem;">
+          <strong><%= user.display_name %></strong>
+          <button class="btn btn-sm btn-outline-light ms-2" onclick="logout()" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </button>
+        </div>
+        <div class="text-white mb-2" style="font-size: 0.9rem; opacity: 0.9;">
+          <i class="bi bi-hand-thumbs-up-fill"></i> Vote còn lại: <strong id="navRemainingVotes">-</strong> |
+          <i class="bi bi-music-note"></i> Thêm bài: <strong id="navRemainingAdds">-</strong>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container-fluid mt-4 px-4">
+    <div class="row g-4">
+
+      <!-- Left Column: Queue, Recently Played, Schedules -->
+      <div class="col-lg-8">
+
+        <!-- Queue Section -->
+        <div class="card mb-4">
+          <div class="card-header-custom">
+            <i class="bi bi-list-ul"></i>
+            Sảnh chờ (<span id="queueCount">0</span>)
+          </div>
+          <div class="card-body p-4">
+
+            <!-- Add Song Form -->
+            <div class="add-song-card">
+              <h6 class="mb-3" style="color: var(--primary-dark); font-weight: 700;">
+                <i class="bi bi-plus-circle-fill"></i> Thêm bài hát mới
+              </h6>
+              <form id="addSongForm" onsubmit="addSongToQueue(event)">
+                <div class="input-group input-group-lg mb-3">
+                  <span class="input-group-text">
+                    <i class="bi bi-youtube"></i>
+                  </span>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="youtubeUrl"
+                    placeholder="Ê nhập link YouTube vào đây"
+                    required
+                  >
+                </div>
+
+                <!-- Dedication Message Textarea -->
+                <div class="mb-3">
+                  <label for="dedicationMessage" class="form-label" style="font-weight: 600; font-size: 0.9rem;">
+                    <i class="bi bi-chat-heart"></i> Lời nhắn gửi (không bắt buộc)
+                  </label>
+                  <textarea
+                    class="form-control"
+                    id="dedicationMessage"
+                    placeholder="Ví dụ: Tặng bạn An thân mến, chúc sinh nhật vui vẻ!"
+                    rows="2"
+                    maxlength="500"
+                    style="border-radius: 10px; resize: none;"
+                  ></textarea>
+                  <small class="text-muted">
+                    <span id="messageCounter">0</span>/500 ký tự
+                  </small>
+                </div>
+
+                <button class="btn btn-primary px-4 w-100" type="submit" id="btnAddSong">
+                  <i class="bi bi-plus-lg"></i> Thêm bài hát
+                </button>
+              </form>
+            </div>
+
+            <!-- Queue List -->
+            <div id="queueContainer"></div>
+
+          </div>
+        </div>
+
+        <!-- Recently Played Section -->
+        <div class="card mb-4">
+          <div class="card-header-custom">
+            <i class="bi bi-clock-history"></i>
+            Đã phát gần đây
+          </div>
+          <div class="card-body p-4">
+            <div id="recentlyPlayedContainer"></div>
+          </div>
+        </div>
+
+        <!-- Schedules Section -->
+        <div class="card">
+          <div class="card-header-custom">
+            <i class="bi bi-calendar-event"></i>
+            Lịch phát tự động
+          </div>
+          <div class="card-body p-4">
+            <button class="btn btn-primary mb-3" onclick="openCreateScheduleModal()" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+              <i class="bi bi-plus-circle"></i> Thêm lịch mới
+            </button>
+            <div id="schedulesContainer"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Audio Player -->
+      <div class="col-lg-4">
+        <div class="audio-player">
+
+          <h5 class="mb-3" style="font-weight: 700;">
+            <i class="bi bi-disc"></i> Trình phát nhạc
+          </h5>
+
+          <!-- Now Playing -->
+          <div class="now-playing-card" id="nowPlaying">
+            <div>
+              <i class="bi bi-music-note-beamed" style="font-size: 2.5rem; opacity: 0.5;"></i>
+              <div class="mt-2">Chưa phát bài nào</div>
+            </div>
+          </div>
+
+          <!-- Hidden Audio Element -->
+          <audio id="audioPlayer"></audio>
+
+          <!-- Progress Bar -->
+          <div class="mb-2" style="position: relative;">
+            <div class="progress-bar-container" id="progressBarContainer">
+              <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+          </div>
+
+          <!-- Time Display -->
+          <div class="d-flex justify-content-between mb-3">
+            <span class="time-display" id="currentTime">0:00</span>
+            <span class="time-display" id="duration">0:00</span>
+          </div>
+
+          <!-- Player Controls -->
+          <div class="player-controls">
+            <button class="player-button" id="btnPlayPause" onclick="togglePlayPause()" disabled>
+              <i class="bi bi-play-fill"></i>
+            </button>
+            <button class="player-button" id="btnPlayNext" onclick="playNext()">
+              <i class="bi bi-skip-forward-fill"></i> Bài tiếp theo
+            </button>
+          </div>
+
+          <!-- Volume Control -->
+          <div class="volume-control">
+            <label class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-volume-up-fill"></i>
+              Âm lượng: <strong id="volumeValue">70</strong>%
+            </label>
+            <input type="range" class="form-range" id="volumeSlider" min="0" max="100" value="70">
+          </div>
+
+          <!-- Output Device -->
+          <div class="output-device">
+            <label class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-speaker-fill"></i>
+              Thiết bị phát:
+            </label>
+            <select id="audioOutput" class="form-select">
+              <option value="">Đang tải...</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- Chat Box -->
+        <div class="chat-box mt-4">
+          <h5 class="mb-3" style="font-weight: 700;">
+            <i class="bi bi-chat-dots"></i> Chat
+          </h5>
+
+          <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+                <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+              </div>
+            </div>
+
+            <div class="chat-input-container">
+              <form id="chatForm" onsubmit="sendMessage(event)">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="chatInput"
+                    placeholder="Nhập tin nhắn..."
+                    maxlength="500"
+                    autocomplete="off"
+                    required
+                  >
+                  <button class="btn btn-primary" type="submit" id="btnSendMessage">
+                    <i class="bi bi-send-fill"></i>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Schedule Modal -->
+  <style>
+    /* Schedule modal custom styles */
+    .schedule-day-btn {
+      display: inline-block;
+      padding: 8px 16px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      user-select: none;
+    }
+    .schedule-day-btn:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .schedule-day-btn.active {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border-color: var(--primary);
+      color: white;
+    }
+    .schedule-day-btn input {
+      display: none;
+    }
+    .time-select-wrapper {
+      position: relative;
+    }
+    .time-select-wrapper i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6c757d;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .time-select-wrapper select {
+      padding-left: 38px;
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+    #scheduleVolume {
+      height: 8px;
+      background: linear-gradient(to right, var(--primary) 0%, var(--primary) 70%, #e9ecef 70%, #e9ecef 100%);
+      border-radius: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    #scheduleVolume::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    #scheduleVolume::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .form-label i {
+      margin-right: 6px;
+      color: var(--primary);
+    }
+  </style>
+
+  <div class="modal fade" id="scheduleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none;">
+          <h5 class="modal-title" id="scheduleModalTitle"><i class="bi bi-calendar-plus"></i> Thêm lịch phát tự động</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="padding: 2rem;">
+          <form id="scheduleForm">
+            <div class="mb-4">
+              <label class="form-label"><i class="bi bi-tag-fill"></i>Tên lịch</label>
+              <input type="text" class="form-control form-control-lg" id="scheduleName" placeholder="Ví dụ: Nhạc buổi sáng" required style="border-radius: 10px;">
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"><i class="bi bi-calendar-week"></i>Chọn ngày trong tuần</label>
+              <div class="d-flex flex-wrap gap-2" style="margin-top: 0.5rem;">
+                <label class="schedule-day-btn active">
+                  <input class="schedule-day" type="checkbox" value="1" id="day1" checked>
+                  T2
+                </label>
+                <label class="schedule-day-btn active">
+                  <input class="schedule-day" type="checkbox" value="2" id="day2" checked>
+                  T3
+                </label>
+                <label class="schedule-day-btn active">
+                  <input class="schedule-day" type="checkbox" value="3" id="day3" checked>
+                  T4
+                </label>
+                <label class="schedule-day-btn active">
+                  <input class="schedule-day" type="checkbox" value="4" id="day4" checked>
+                  T5
+                </label>
+                <label class="schedule-day-btn active">
+                  <input class="schedule-day" type="checkbox" value="5" id="day5" checked>
+                  T6
+                </label>
+                <label class="schedule-day-btn">
+                  <input class="schedule-day" type="checkbox" value="6" id="day6">
+                  T7
+                </label>
+                <label class="schedule-day-btn">
+                  <input class="schedule-day" type="checkbox" value="0" id="day0">
+                  CN
+                </label>
+              </div>
+              <small class="text-muted mt-2 d-block">Chọn ít nhất 1 ngày</small>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"><i class="bi bi-clock-fill"></i>Thời gian phát</label>
+              <div class="row g-3">
+                <div class="col-6">
+                  <div class="time-select-wrapper">
+                    <i class="bi bi-clock"></i>
+                    <select class="form-select form-select-lg" id="scheduleHour" required style="border-radius: 10px;">
+                      <option value="">Giờ</option>
+                      <option value="0">00</option>
+                      <option value="1">01</option>
+                      <option value="2">02</option>
+                      <option value="3">03</option>
+                      <option value="4">04</option>
+                      <option value="5">05</option>
+                      <option value="6">06</option>
+                      <option value="7">07</option>
+                      <option value="8">08</option>
+                      <option value="9">09</option>
+                      <option value="10">10</option>
+                      <option value="11">11</option>
+                      <option value="12">12</option>
+                      <option value="13">13</option>
+                      <option value="14">14</option>
+                      <option value="15">15</option>
+                      <option value="16">16</option>
+                      <option value="17" selected>17</option>
+                      <option value="18">18</option>
+                      <option value="19">19</option>
+                      <option value="20">20</option>
+                      <option value="21">21</option>
+                      <option value="22">22</option>
+                      <option value="23">23</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="time-select-wrapper">
+                    <i class="bi bi-hourglass-split"></i>
+                    <select class="form-select form-select-lg" id="scheduleMinute" required style="border-radius: 10px;">
+                      <option value="0" selected>00</option>
+                      <option value="1">01</option>
+                      <option value="2">02</option>
+                      <option value="3">03</option>
+                      <option value="4">04</option>
+                      <option value="5">05</option>
+                      <option value="6">06</option>
+                      <option value="7">07</option>
+                      <option value="8">08</option>
+                      <option value="9">09</option>
+                      <option value="10">10</option>
+                      <option value="11">11</option>
+                      <option value="12">12</option>
+                      <option value="13">13</option>
+                      <option value="14">14</option>
+                      <option value="15">15</option>
+                      <option value="16">16</option>
+                      <option value="17">17</option>
+                      <option value="18">18</option>
+                      <option value="19">19</option>
+                      <option value="20">20</option>
+                      <option value="21">21</option>
+                      <option value="22">22</option>
+                      <option value="23">23</option>
+                      <option value="24">24</option>
+                      <option value="25">25</option>
+                      <option value="26">26</option>
+                      <option value="27">27</option>
+                      <option value="28">28</option>
+                      <option value="29">29</option>
+                      <option value="30">30</option>
+                      <option value="31">31</option>
+                      <option value="32">32</option>
+                      <option value="33">33</option>
+                      <option value="34">34</option>
+                      <option value="35">35</option>
+                      <option value="36">36</option>
+                      <option value="37">37</option>
+                      <option value="38">38</option>
+                      <option value="39">39</option>
+                      <option value="40">40</option>
+                      <option value="41">41</option>
+                      <option value="42">42</option>
+                      <option value="43">43</option>
+                      <option value="44">44</option>
+                      <option value="45">45</option>
+                      <option value="46">46</option>
+                      <option value="47">47</option>
+                      <option value="48">48</option>
+                      <option value="49">49</option>
+                      <option value="50">50</option>
+                      <option value="51">51</option>
+                      <option value="52">52</option>
+                      <option value="53">53</option>
+                      <option value="54">54</option>
+                      <option value="55">55</option>
+                      <option value="56">56</option>
+                      <option value="57">57</option>
+                      <option value="58">58</option>
+                      <option value="59">59</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"><i class="bi bi-volume-up-fill"></i>Âm lượng</label>
+              <div style="padding: 0 0.5rem;">
+                <input type="range" class="form-range" id="scheduleVolume" min="0" max="100" value="70" oninput="updateScheduleVolumeSlider(this)">
+              </div>
+              <div class="text-center mt-2">
+                <span class="badge bg-primary" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                  <strong id="scheduleVolumeValue">70</strong>%
+                </span>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label"><i class="bi bi-music-note-list"></i>Số bài hát</label>
+              <select class="form-select form-select-lg" id="scheduleSongCount" required style="border-radius: 10px;">
+                <option value="1" selected>1 bài</option>
+                <option value="2">2 bài</option>
+                <option value="3">3 bài</option>
+                <option value="5">5 bài</option>
+                <option value="10">10 bài</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer" style="border: none; padding: 1rem 2rem 2rem;">
+          <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal" style="border-radius: 10px; padding: 0.75rem 2rem;">Đóng</button>
+          <button type="button" class="btn btn-primary btn-lg" id="scheduleSubmitBtn" onclick="submitScheduleForm()" style="border-radius: 10px; padding: 0.75rem 2rem;">
+            <i class="bi bi-check-circle"></i> <span id="scheduleSubmitText">Lưu lịch</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Handle day button toggle
+    document.querySelectorAll('.schedule-day-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        if (e.target.tagName === 'LABEL') {
+          const checkbox = this.querySelector('input');
+          checkbox.checked = !checkbox.checked;
+          this.classList.toggle('active', checkbox.checked);
+        }
+      });
+    });
+
+    // Update schedule volume slider visual feedback
+    function updateScheduleVolumeSlider(slider) {
+      const value = slider.value;
+      document.getElementById('scheduleVolumeValue').textContent = value;
+      // Update gradient: primary from 0 to value%, gray from value% to 100%
+      slider.style.background = `linear-gradient(to right, var(--primary) 0%, var(--primary) ${value}%, #e9ecef ${value}%, #e9ecef 100%)`;
+    }
+
+    // Initialize slider on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      const slider = document.getElementById('scheduleVolume');
+      if (slider) {
+        updateScheduleVolumeSlider(slider);
+      }
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Track if this tab is the active admin
+    let isActiveTab = false;
+
+    // Track takeover flag
+    window.adminTakeover = window.adminTakeover || false;
+
+    socket.on('connect', () => {
+      console.log('[Admin] Socket connected:', socket.id);
+
+      // Join admin room with takeover flag
+      socket.emit('join_admin_room', {
+        takeover: window.adminTakeover
+      });
+
+      // Reset takeover flag after use
+      window.adminTakeover = false;
+
+      // Hide overlay when reconnecting
+      document.getElementById('inactiveOverlay').style.display = 'none';
+    });
+
+    socket.on('admin_active', (data) => {
+      console.log('[Admin] This tab is now active:', data);
+      isActiveTab = true;
+      document.getElementById('inactiveOverlay').style.display = 'none';
+    });
+
+    socket.on('admin_rejected', (data) => {
+      console.log('[Admin] Admin room join rejected:', data.message);
+      isActiveTab = false;
+
+      // Stop audio if playing
+      const audio = document.getElementById('audioPlayer');
+      audio.pause();
+      audio.src = '';
+
+      // Update overlay message if a song is playing
+      const overlayContent = document.querySelector('.overlay-content p');
+      if (data.songPlaying && data.currentSong) {
+        overlayContent.innerHTML = `
+          Admin panel đã được mở ở tab/thiết bị khác.<br>
+          <strong>Chỉ cho phép 1 admin panel hoạt động cùng lúc.</strong><br>
+          <br>
+          <span style="color: #f44336; font-weight: bold;">⚠️ Đang phát: ${data.currentSong.title}</span>
+        `;
+      }
+
+      // Show blocking overlay
+      document.getElementById('inactiveOverlay').style.display = 'block';
+    });
+
+    socket.on('takeover_warning', (data) => {
+      console.log('[Admin] Takeover warning:', data);
+      // Optionally show a toast or notification about taking over while song is playing
+      console.warn(`⚠️ Taking over while "${data.currentSong.title}" is playing`);
+    });
+
+    socket.on('force_disconnect', (data) => {
+      console.log('[Admin] Forced disconnect by new admin:', data.message);
+      isActiveTab = false;
+
+      // Stop audio if playing
+      const audio = document.getElementById('audioPlayer');
+      audio.pause();
+      audio.src = '';
+
+      // Show blocking overlay (NO redirect, allow takeover)
+      document.getElementById('inactiveOverlay').style.display = 'block';
+
+      console.log('[Admin] Tab marked as inactive - overlay shown');
+    });
+
+    // Handle socket disconnect
+    socket.on('disconnect', () => {
+      console.log('[Admin] Socket disconnected');
+    });
+
+    function takeoverAdmin() {
+      console.log('[Admin] Attempting to takeover admin control...');
+
+      // Set takeover flag BEFORE reconnecting
+      window.adminTakeover = true;
+
+      // Reconnect socket - this will trigger join_admin_room with takeover=true
+      socket.disconnect();
+      socket.connect();
+
+      console.log('[Admin] Takeover initiated - reconnecting with takeover flag...');
+    }
+
+    socket.on('queue_updated', () => loadQueue());
+    socket.on('recently_played_updated', () => loadRecentlyPlayed());
+    socket.on('schedule_updated', () => loadSchedules());
+
+    // Handle play announcement event (Web Speech API → Music sequentially)
+    socket.on('play_announcement', (data) => {
+      console.log('[Admin] Received play_announcement event:', data);
+
+      const audio = document.getElementById('audioPlayer');
+      const btnPlayPause = document.getElementById('btnPlayPause');
+
+      audio.volume = data.volume / 100;
+
+      // Update volume slider UI
+      const volumeSlider = document.getElementById('volumeSlider');
+      const volumeValue = document.getElementById('volumeValue');
+      volumeSlider.value = data.volume;
+      volumeValue.textContent = data.volume;
+
+      // Show DJ announcement indicator
+      document.getElementById('nowPlaying').innerHTML = `
+        <div>
+          <i class="bi bi-broadcast spinning" style="font-size: 3rem; color: #ff6b6b;"></i>
+          <div class="mt-3">
+            <strong style="font-size: 0.9rem;">🎙️ DJ đang giới thiệu...</strong><br>
+            <strong style="font-size: 1.1rem;">${data.song.title}</strong><br>
+            <span style="opacity: 0.8;">${data.song.artist || 'Unknown Artist'}</span>
+          </div>
+        </div>
+      `;
+
+      // Use Web Speech API to read announcement text
+      if ('speechSynthesis' in window && data.announcement_text) {
+        console.log('[Admin] Speaking announcement:', data.announcement_text);
+
+        const utterance = new SpeechSynthesisUtterance(data.announcement_text);
+        utterance.lang = 'vi-VN';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        let hasSpoken = false; // Prevent double speaking
+        let musicStarted = false; // Prevent starting music multiple times
+
+        // Wait for voices to load, then select Vietnamese voice
+        const setVoiceAndSpeak = () => {
+          if (hasSpoken) return; // Already speaking, don't speak again
+          hasSpoken = true;
+
+          const voices = speechSynthesis.getVoices();
+          console.log('[Admin] Available voices:', voices.length);
+
+          const viVoice = voices.find(voice =>
+            voice.lang.includes('vi') ||
+            voice.lang.includes('VN') ||
+            voice.name.includes('Vietnam')
+          );
+
+          if (viVoice) {
+            console.log('[Admin] Using Vietnamese voice:', viVoice.name);
+            utterance.voice = viVoice;
+          } else {
+            console.log('[Admin] No Vietnamese voice found, using default');
+          }
+
+          // Estimate speech duration (rough: 150 words per minute for Vietnamese)
+          const words = data.announcement_text.split(/\s+/).length;
+          const estimatedDuration = (words / 150) * 60 * 1000; // in milliseconds
+          const earlyStartTime = Math.max(estimatedDuration - 2000, estimatedDuration * 0.7); // Start music 2s early or 70% through
+
+          console.log('[Admin] Estimated speech duration:', estimatedDuration, 'ms, starting music after:', earlyStartTime, 'ms');
+
+          // Start music early (before speech ends)
+          const musicStartTimer = setTimeout(() => {
+            if (!musicStarted) {
+              console.log('[Admin] Starting music early (before announcement ends)...');
+              playMusic();
+              musicStarted = true;
+            }
+          }, earlyStartTime);
+
+          utterance.onstart = () => {
+            console.log('[Admin] Speech started');
+          };
+
+          utterance.onend = () => {
+            console.log('[Admin] Speech ended');
+            clearTimeout(musicStartTimer);
+            // If music hasn't started yet (speech was shorter than expected), start it now
+            if (!musicStarted) {
+              playMusic();
+              musicStarted = true;
+            }
+          };
+
+          utterance.onerror = (err) => {
+            console.error('[Admin] Speech error:', err);
+            clearTimeout(musicStartTimer);
+            if (!musicStarted) {
+              playMusic();
+              musicStarted = true;
+            }
+          };
+
+          speechSynthesis.speak(utterance);
+        };
+
+        // Check if voices are already loaded
+        if (speechSynthesis.getVoices().length > 0) {
+          setVoiceAndSpeak();
+        } else {
+          // Wait for voices to load (only set listener once)
+          let voicesLoaded = false;
+          speechSynthesis.onvoiceschanged = () => {
+            if (!voicesLoaded) {
+              voicesLoaded = true;
+              speechSynthesis.onvoiceschanged = null; // Remove listener
+              setVoiceAndSpeak();
+            }
+          };
+          // Fallback: if voices don't load in 200ms, speak anyway
+          setTimeout(() => {
+            if (!hasSpoken) {
+              setVoiceAndSpeak();
+            }
+          }, 200);
+        }
+      } else {
+        console.warn('[Admin] Web Speech API not available or no announcement text');
+        playMusic();
+      }
+
+      function playMusic() {
+        document.getElementById('nowPlaying').innerHTML = `
+          <div>
+            <i class="bi bi-disc-fill spinning" style="font-size: 3rem;"></i>
+            <div class="mt-3">
+              <strong style="font-size: 1.1rem;">${data.song.title}</strong><br>
+              <span style="opacity: 0.8;">${data.song.artist || 'Unknown Artist'}</span>
+            </div>
+          </div>
+        `;
+
+        audio.src = data.stream_url;
+        audio.play().then(() => {
+          console.log('[Admin] Playing music:', data.song.title);
+          btnPlayPause.disabled = false;
+          btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+
+          if (isActiveTab) {
+            socket.emit('song_started', {
+              song: data.song,
+              stream_url: data.stream_url,
+              volume: data.volume
+            });
+          }
+
+          audio.onended = () => {
+            console.log('[Admin] Song ended, playing next...');
+            btnPlayPause.disabled = true;
+            socket.emit('song_ended_notify');
+            playNext();
+          };
+        }).catch(err => {
+          console.error('[Admin] Error playing music:', err);
+          alert('Không thể phát nhạc: ' + err.message);
+        });
+      }
+    });
+
+    // Handle play song event
+    socket.on('play_song', (data) => {
+      console.log('[Admin] Received play_song event:', data);
+
+      if (data.stream_url) {
+        const audio = document.getElementById('audioPlayer');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+
+        audio.src = data.stream_url;
+        audio.volume = data.volume / 100;
+
+        // Update volume slider UI to match the scheduled volume
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        volumeSlider.value = data.volume;
+        volumeValue.textContent = data.volume;
+
+        // Update now playing display
+        document.getElementById('nowPlaying').innerHTML = `
+          <div>
+            <i class="bi bi-disc-fill spinning" style="font-size: 3rem;"></i>
+            <div class="mt-3">
+              <strong style="font-size: 1.1rem;">${data.song.title}</strong><br>
+              <span style="opacity: 0.8;">${data.song.artist || 'Unknown Artist'}</span>
+            </div>
+          </div>
+        `;
+
+        // Play and handle errors
+        audio.play().then(() => {
+          console.log('[Admin] Playing:', data.song.title);
+          btnPlayPause.disabled = false;
+          btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+
+          // Emit song_started to server (so public page can get current song)
+          if (isActiveTab) {
+            socket.emit('song_started', {
+              song: data.song,
+              stream_url: data.stream_url,
+              volume: data.volume
+            });
+          }
+        }).catch(err => {
+          console.error('[Admin] Play error:', err);
+          alert('Không thể phát nhạc: ' + err.message);
+          btnPlayPause.disabled = true;
+        });
+
+        // Auto-play next song when current finishes
+        audio.onended = () => {
+          console.log('[Admin] Song ended, notifying clients and playing next...');
+          btnPlayPause.disabled = true;
+
+          // Notify all clients that song has ended
+          socket.emit('song_ended_notify');
+
+          // Play next song
+          playNext();
+        };
+      } else {
+        console.error('[Admin] No stream URL provided');
+        alert('Không thể lấy URL stream từ YouTube');
+      }
+    });
+
+    async function loadQueue() {
+      const res = await fetch('/api/songs/queue');
+      const data = await res.json();
+      document.getElementById('queueCount').textContent = data.songs.length;
+
+      if (data.songs.length === 0) {
+        document.getElementById('queueContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <p>Chưa có bài hát nào trong sảnh chờ</p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('queueContainer').innerHTML = data.songs.map(s => `
+        <div class="queue-item">
+          <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="queue-item-thumbnail" alt="${s.title}">
+          <div class="queue-item-content">
+            <div class="queue-item-title" title="${s.title}">${s.title}</div>
+            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <i class="bi bi-mic-fill"></i> ${s.artist || 'Unknown Artist'}
+            </div>
+            <div class="queue-item-meta">
+              <div class="queue-item-added-by">
+                <i class="bi bi-person-circle"></i>
+                <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
+              </div>
+              ${s.dedication_message ? `
+                <div class="queue-item-dedication" title="${s.dedication_message}">
+                  <i class="bi bi-chat-heart-fill" style="color: #ff6b6b;"></i>
+                  <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message.length > 50 ? s.dedication_message.substring(0, 50) + '...' : s.dedication_message}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="queue-item-actions">
+            <div class="vote-badge" onclick="toggleVote(${s.id})" title="Click để vote">
+              <i class="bi bi-hand-thumbs-up-fill"></i>
+              <span>${s.vote_count}</span>
+            </div>
+            <button class="btn-delete" onclick="deleteSong(${s.id})">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadRecentlyPlayed() {
+      const res = await fetch('/api/songs/recently-played');
+      const data = await res.json();
+
+      if (data.songs.length === 0) {
+        document.getElementById('recentlyPlayedContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-clock-history"></i>
+            <p>Chưa phát bài nào</p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('recentlyPlayedContainer').innerHTML = data.songs.map(s => `
+        <div class="recent-item">
+          <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="recent-item-thumbnail" alt="${s.title}">
+          <div class="recent-item-info">
+            <div class="recent-item-title" title="${s.title}">${s.title}</div>
+            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <i class="bi bi-mic-fill"></i> ${s.artist || 'Unknown Artist'}
+            </div>
+            <div class="recent-item-meta">
+              <div class="recent-item-added-by">
+                <i class="bi bi-person-circle"></i>
+                <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-delete-small" onclick="deleteRecentSong(${s.id})">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    // Helper function to decode cron to readable text
+    function decodeCron(cronExpression) {
+      try {
+        const parts = cronExpression.split(' ');
+        const minute = parts[0].padStart(2, '0');
+        const hour = parts[1].padStart(2, '0');
+        const days = parts[4];
+
+        const dayNames = { 0: 'CN', 1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7' };
+        const dayList = days.split(',').map(d => dayNames[d] || d).join(', ');
+
+        return `${dayList} lúc ${hour}:${minute}`;
+      } catch (e) {
+        return cronExpression;
+      }
+    }
+
+    async function loadSchedules() {
+      const res = await fetch('/api/schedules');
+      if (!res.ok) {
+        document.getElementById('schedulesContainer').innerHTML = '<p class="text-muted">Không thể tải lịch phát</p>';
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!data.schedules || data.schedules.length === 0) {
+        document.getElementById('schedulesContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-calendar-x"></i>
+            <p>Chưa có lịch phát nào</p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('schedulesContainer').innerHTML = data.schedules.map(s => {
+        const statusBadge = s.is_active
+          ? '<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Đang bật</span>'
+          : '<span class="badge bg-danger"><i class="bi bi-x-circle-fill"></i> Đã tắt</span>';
+
+        const toggleBtnStyle = s.is_active
+          ? 'background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none;'
+          : 'background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; border: none;';
+
+        const toggleBtnIcon = s.is_active ? 'power' : 'power';
+        const toggleBtnText = s.is_active ? 'Tắt lịch' : 'Bật lịch';
+
+        return `
+          <div class="schedule-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <strong>${s.name}</strong>
+                  ${statusBadge}
+                </div>
+                <small class="text-muted d-block">
+                  <i class="bi bi-clock"></i> ${decodeCron(s.cron_expression)}
+                </small>
+                <small class="text-muted d-block">
+                  <i class="bi bi-volume-up"></i> Volume ${s.volume}% •
+                  <i class="bi bi-music-note"></i> ${s.song_count} bài
+                </small>
+              </div>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm" style="${toggleBtnStyle}" onclick="toggleSchedule(${s.id}, ${!s.is_active})" title="${toggleBtnText}">
+                  <i class="bi bi-${toggleBtnIcon}"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="editSchedule(${s.id})" title="Sửa">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteSchedule(${s.id})" title="Xóa">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function getUserInfo() {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+      document.getElementById('navRemainingVotes').textContent = data.remaining_votes;
+      document.getElementById('navRemainingAdds').textContent = data.remaining_adds;
+    }
+
+    async function loadAudioDevices() {
+      try {
+        const select = document.getElementById('audioOutput');
+
+        // First, try to enumerate devices
+        let devices = await navigator.mediaDevices.enumerateDevices();
+        let audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+
+        // Check if we have device labels
+        const hasLabels = audioOutputs.some(d => d.label && d.label.trim() !== '');
+
+        // If no labels, request audio permission to get device labels
+        if (!hasLabels) {
+          try {
+            console.log('[Admin] Requesting audio permission to get device labels...');
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Immediately stop the stream - we only needed permission
+            stream.getTracks().forEach(track => track.stop());
+
+            // Now re-enumerate to get actual labels
+            devices = await navigator.mediaDevices.enumerateDevices();
+            audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+            console.log('[Admin] Got device labels after permission');
+          } catch (permErr) {
+            console.log('[Admin] Audio permission denied, using generic labels');
+          }
+        }
+
+        if (audioOutputs.length === 0) {
+          select.innerHTML = '<option value="">Default Output</option>';
+          return;
+        }
+
+        select.innerHTML = audioOutputs.map((d, i) => {
+          const label = d.label || `Speaker ${i + 1}`;
+          return `<option value="${d.deviceId}">${label}</option>`;
+        }).join('');
+
+        select.addEventListener('change', async (e) => {
+          const audio = document.getElementById('audioPlayer');
+          if (audio.setSinkId) {
+            try {
+              await audio.setSinkId(e.target.value);
+              console.log('[Admin] Output device changed to:', e.target.options[e.target.selectedIndex].text);
+            } catch (err) {
+              console.error('[Admin] Failed to set output device:', err);
+            }
+          }
+        });
+      } catch (err) {
+        console.error('[Admin] Failed to enumerate audio devices:', err);
+        document.getElementById('audioOutput').innerHTML = '<option value="">Default Output</option>';
+      }
+    }
+
+    document.getElementById('volumeSlider').addEventListener('input', async (e) => {
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+      const volume = e.target.value;
+      document.getElementById('volumeValue').textContent = volume;
+      document.getElementById('audioPlayer').volume = volume / 100;
+      await fetch('/api/playback/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume: parseInt(volume) })
+      });
+    });
+
+    // Helper function to convert UI to cron expression
+    function buildCronExpression() {
+      const minute = document.getElementById('scheduleMinute').value;
+      const hour = document.getElementById('scheduleHour').value;
+
+      // Get selected days
+      const days = Array.from(document.querySelectorAll('.schedule-day:checked'))
+        .map(cb => cb.value)
+        .sort((a, b) => a - b)
+        .join(',');
+
+      if (!days) {
+        throw new Error('Chọn ít nhất 1 ngày');
+      }
+
+      // Cron format: minute hour * * day-of-week
+      return `${minute} ${hour} * * ${days}`;
+    }
+
+    // Track current editing schedule ID
+    let currentEditingScheduleId = null;
+
+    // Helper function to parse cron back to form values
+    function parseCronToForm(cronExpression) {
+      try {
+        const parts = cronExpression.split(' ');
+        const minute = parts[0];
+        const hour = parts[1];
+        const days = parts[4].split(',');
+
+        document.getElementById('scheduleMinute').value = minute;
+        document.getElementById('scheduleHour').value = hour;
+
+        // Uncheck all days first
+        document.querySelectorAll('.schedule-day-btn').forEach(btn => {
+          const checkbox = btn.querySelector('input');
+          checkbox.checked = false;
+          btn.classList.remove('active');
+        });
+
+        // Check selected days
+        days.forEach(day => {
+          const checkbox = document.querySelector(`.schedule-day[value="${day}"]`);
+          if (checkbox) {
+            checkbox.checked = true;
+            checkbox.closest('.schedule-day-btn').classList.add('active');
+          }
+        });
+      } catch (error) {
+        console.error('Error parsing cron:', error);
+      }
+    }
+
+    // Open modal for creating new schedule
+    function openCreateScheduleModal() {
+      currentEditingScheduleId = null;
+      document.getElementById('scheduleModalTitle').innerHTML = '<i class="bi bi-calendar-plus"></i> Thêm lịch phát tự động';
+      document.getElementById('scheduleSubmitText').textContent = 'Lưu lịch';
+
+      // Reset form to defaults
+      document.getElementById('scheduleForm').reset();
+      document.querySelectorAll('.schedule-day-btn').forEach((btn, i) => {
+        const checkbox = btn.querySelector('input');
+        checkbox.checked = i < 5; // Check T2-T6
+        btn.classList.toggle('active', checkbox.checked);
+      });
+      document.getElementById('scheduleHour').value = '17';
+      document.getElementById('scheduleMinute').value = '0';
+      const volumeSlider = document.getElementById('scheduleVolume');
+      volumeSlider.value = '70';
+      updateScheduleVolumeSlider(volumeSlider);
+      document.getElementById('scheduleSongCount').value = '1';
+    }
+
+    // Edit existing schedule
+    async function editSchedule(id) {
+      try {
+        const res = await fetch('/api/schedules');
+        const data = await res.json();
+        const schedule = data.schedules.find(s => s.id === id);
+
+        if (!schedule) {
+          alert('Không tìm thấy lịch này');
+          return;
+        }
+
+        currentEditingScheduleId = id;
+        document.getElementById('scheduleModalTitle').innerHTML = '<i class="bi bi-pencil"></i> Sửa lịch phát';
+        document.getElementById('scheduleSubmitText').textContent = 'Cập nhật';
+
+        // Fill form with existing data
+        document.getElementById('scheduleName').value = schedule.name;
+        parseCronToForm(schedule.cron_expression);
+
+        const volumeSlider = document.getElementById('scheduleVolume');
+        volumeSlider.value = schedule.volume;
+        updateScheduleVolumeSlider(volumeSlider);
+
+        document.getElementById('scheduleSongCount').value = schedule.song_count;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+        modal.show();
+      } catch (error) {
+        console.error('Error loading schedule:', error);
+        alert('Lỗi load lịch phát');
+      }
+    }
+
+    // Submit form (create or update)
+    async function submitScheduleForm() {
+      try {
+        const cronExpression = buildCronExpression();
+
+        const payload = {
+          name: document.getElementById('scheduleName').value,
+          cron_expression: cronExpression,
+          volume: parseInt(document.getElementById('scheduleVolume').value),
+          song_count: parseInt(document.getElementById('scheduleSongCount').value)
+        };
+
+        let url = '/api/schedules';
+        let method = 'POST';
+        let successMessage = 'Đã tạo lịch phát rồi nha ✨';
+
+        if (currentEditingScheduleId) {
+          url = `/api/schedules/${currentEditingScheduleId}`;
+          method = 'PUT';
+          successMessage = 'Đã cập nhật lịch rồi nha ✨';
+        }
+
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+          loadSchedules();
+          alert(successMessage);
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    document.getElementById('scheduleForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      submitScheduleForm();
+    });
+
+    async function toggleVote(id) {
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+
+      // Ask for confirmation before voting
+      const confirmed = confirm('Bạn có muốn vote cho bài này không?');
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/votes/${id}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          getUserInfo();
+          loadQueue();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error voting:', error);
+        alert('Không thể vote');
+      }
+    }
+
+    async function addSongToQueue(event) {
+      event.preventDefault();
+
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+
+      const urlInput = document.getElementById('youtubeUrl');
+      const messageInput = document.getElementById('dedicationMessage');
+      const url = urlInput.value.trim();
+      const message = messageInput.value.trim();
+      const btnAddSong = document.getElementById('btnAddSong');
+
+      if (!url) {
+        alert('Vui lòng nhập YouTube URL');
+        return;
+      }
+
+      btnAddSong.disabled = true;
+      btnAddSong.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang thêm...';
+
+      try {
+        const res = await fetch('/api/songs/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            youtube_url: url,
+            dedication_message: message || null
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          urlInput.value = '';
+          messageInput.value = '';
+          document.getElementById('messageCounter').textContent = '0';
+          loadQueue();
+          getUserInfo();
+          alert(`✅ Đã thêm: ${data.song.title}`);
+        } else {
+          alert('❌ Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error adding song:', error);
+        alert('❌ Không thể thêm bài hát. Vui lòng thử lại.');
+      } finally {
+        btnAddSong.disabled = false;
+        btnAddSong.innerHTML = '<i class="bi bi-plus-lg"></i> Thêm bài hát';
+      }
+    }
+
+    // Character counter for dedication message
+    document.getElementById('dedicationMessage').addEventListener('input', function() {
+      document.getElementById('messageCounter').textContent = this.value.length;
+    });
+
+    async function deleteSong(id) {
+      if (!confirm('Bạn có chắc muốn xóa bài hát này khỏi sảnh chờ?')) return;
+
+      try {
+        const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+          loadQueue();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error deleting song:', error);
+        alert('Không thể xóa bài hát');
+      }
+    }
+
+    async function deleteRecentSong(id) {
+      if (!confirm('Bạn có chắc muốn xóa bài hát này khỏi danh sách đã phát?')) return;
+
+      try {
+        const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+          loadRecentlyPlayed();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error deleting song:', error);
+        alert('Không thể xóa bài hát');
+      }
+    }
+
+    async function playNext() {
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+      await fetch('/api/playback/next', { method: 'POST' });
+    }
+
+    function togglePlayPause() {
+      const audio = document.getElementById('audioPlayer');
+      const btn = document.getElementById('btnPlayPause');
+
+      if (audio.paused) {
+        audio.play();
+        btn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+      } else {
+        audio.pause();
+        btn.innerHTML = '<i class="bi bi-play-fill"></i>';
+      }
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateProgress() {
+      const audio = document.getElementById('audioPlayer');
+      const fill = document.getElementById('progressBarFill');
+      const currentTimeEl = document.getElementById('currentTime');
+      const durationEl = document.getElementById('duration');
+
+      if (audio.duration) {
+        const progress = (audio.currentTime / audio.duration) * 100;
+        fill.style.width = progress + '%';
+        currentTimeEl.textContent = formatTime(audio.currentTime);
+        durationEl.textContent = formatTime(audio.duration);
+      }
+    }
+
+    function seekAudio(event) {
+      const audio = document.getElementById('audioPlayer');
+      const container = document.getElementById('progressBarContainer');
+
+      if (!audio.src || !audio.duration || isNaN(audio.duration)) {
+        console.log('[Admin] Cannot seek: no audio loaded');
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+      const newTime = percentage * audio.duration;
+
+      console.log(`[Admin] Seeking to ${formatTime(newTime)}`);
+      audio.currentTime = newTime;
+    }
+
+    const audio = document.getElementById('audioPlayer');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+
+    audio.addEventListener('loadedmetadata', () => {
+      btnPlayPause.disabled = false;
+      document.getElementById('duration').textContent = formatTime(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', updateProgress);
+
+    audio.addEventListener('play', () => {
+      btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+    });
+
+    audio.addEventListener('pause', () => {
+      btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+    });
+
+    audio.addEventListener('ended', () => {
+      btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+      btnPlayPause.disabled = true;
+    });
+
+    // Add error handler to catch audio loading errors
+    audio.addEventListener('error', (e) => {
+      console.error('[Admin] Audio error:', e);
+      console.error('[Admin] Audio error details:', audio.error);
+      if (audio.error) {
+        console.error('[Admin] Error code:', audio.error.code);
+        console.error('[Admin] Error message:', audio.error.message);
+      }
+    });
+
+    // Add waiting handler to show loading state
+    audio.addEventListener('waiting', () => {
+      console.log('[Admin] Audio waiting/buffering...');
+    });
+
+    // Add canplay handler
+    audio.addEventListener('canplay', () => {
+      console.log('[Admin] Audio can play - ready to start');
+    });
+
+    document.getElementById('progressBarContainer').addEventListener('click', seekAudio);
+
+    async function toggleSchedule(id, isActive) {
+      try {
+        const res = await fetch(`/api/schedules/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: isActive })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadSchedules();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        alert('Lỗi rồi bạn ơi');
+      }
+    }
+
+    async function deleteSchedule(id) {
+      if (confirm('Xóa lịch này? Không thể hoàn tác đâu nhaa')) {
+        try {
+          const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (data.success) {
+            loadSchedules();
+            alert('Đã xóa lịch rồi nha');
+          } else {
+            alert(data.message);
+          }
+        } catch (error) {
+          alert('Xóa lịch lỗi rồi bạn ơi');
+        }
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    // ============= CHAT FUNCTIONS =============
+
+    // Format message time (show date if not today)
+    function formatMessageTime(dateStr) {
+      const msgDate = new Date(dateStr);
+      const today = new Date();
+
+      // Check if message is from today
+      const isToday = msgDate.toDateString() === today.toDateString();
+
+      if (isToday) {
+        return msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        // Show date + time
+        return msgDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' +
+               msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    // Load chat messages
+    async function loadMessages() {
+      try {
+        const res = await fetch('/api/chat/messages');
+        const data = await res.json();
+
+        if (data.success) {
+          const container = document.getElementById('chatMessages');
+
+          if (data.messages.length === 0) {
+            container.innerHTML = `
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+                <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = data.messages.map(msg => {
+            const timeStr = formatMessageTime(msg.created_at);
+
+            return `
+              <div class="chat-message" data-message-id="${msg.id}">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <div class="chat-message-username">${msg.username}</div>
+                    <div class="chat-message-text">${escapeHtml(msg.message)}</div>
+                    <span class="chat-message-time">${timeStr}</span>
+                  </div>
+                  <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="deleteMessage(${msg.id})" title="Xóa tin nhắn">
+                    <i class="bi bi-x-circle"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          // Scroll to bottom
+          scrollChatToBottom();
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    }
+
+    // Send message
+    async function sendMessage(event) {
+      event.preventDefault();
+
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      try {
+        const res = await fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          input.value = ''; // Clear input
+          // Message will be added via Socket.io event
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Lỗi gửi tin nhắn rồi bạn ơi');
+      }
+    }
+
+    // Add new message to chat (from Socket.io)
+    function addMessageToChat(msg) {
+      const container = document.getElementById('chatMessages');
+
+      // Remove empty state if present
+      const emptyState = container.querySelector('.text-center');
+      if (emptyState) {
+        container.innerHTML = '';
+      }
+
+      const timeStr = formatMessageTime(msg.created_at);
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'chat-message';
+      messageDiv.setAttribute('data-message-id', msg.id);
+      messageDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <div class="chat-message-username">${msg.username}</div>
+            <div class="chat-message-text">${escapeHtml(msg.message)}</div>
+            <span class="chat-message-time">${timeStr}</span>
+          </div>
+          <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="deleteMessage(${msg.id})" title="Xóa tin nhắn">
+            <i class="bi bi-x-circle"></i>
+          </button>
+        </div>
+      `;
+
+      container.appendChild(messageDiv);
+      scrollChatToBottom();
+    }
+
+    // Delete message (admin only)
+    async function deleteMessage(messageId) {
+      if (!confirm('Xóa tin nhắn này?')) return;
+
+      try {
+        const res = await fetch(`/api/chat/messages/${messageId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+
+        if (!data.success) {
+          alert(data.message);
+        }
+        // Message will be removed via Socket.io event
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        alert('Lỗi xóa tin nhắn');
+      }
+    }
+
+    // Remove message from UI
+    function removeMessageFromUI(messageId) {
+      const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageDiv) {
+        messageDiv.remove();
+
+        // Check if empty
+        const container = document.getElementById('chatMessages');
+        if (container.children.length === 0) {
+          container.innerHTML = `
+            <div class="text-center text-muted py-3">
+              <i class="bi bi-chat-text" style="font-size: 2rem; opacity: 0.3;"></i>
+              <div class="mt-2" style="font-size: 0.9rem;">Chưa có tin nhắn nào</div>
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Scroll chat to bottom
+    function scrollChatToBottom() {
+      const container = document.getElementById('chatMessages');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Listen for new messages from Socket.io
+    socket.on('new_message', (data) => {
+      addMessageToChat(data);
+    });
+
+    // Listen for message deleted event
+    socket.on('message_deleted', (data) => {
+      removeMessageFromUI(data.id);
+    });
+
+    // Add beforeunload confirmation if song is playing
+    window.addEventListener('beforeunload', (e) => {
+      const audio = document.getElementById('audioPlayer');
+
+      // If audio is playing and this is the active tab
+      if (isActiveTab && audio && !audio.paused && audio.currentTime > 0 && audio.src) {
+        const message = 'Bài hát đang phát. Bạn có chắc muốn thoát?';
+        e.preventDefault();
+        e.returnValue = message;
+        return message;
+      }
+    });
+
+    // Initialize
+    loadQueue();
+    loadRecentlyPlayed();
+    loadSchedules();
+    getUserInfo();
+    loadAudioDevices();
+    loadMessages();
+  </script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+name: Music Player production
+
+on:
+    push:
+        branches:
+            - master
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: SSH into remote server and execute commands
+                uses: appleboy/ssh-action@master
+                with:
+                    host: 103.148.57.174
+                    username: root
+                    key: ${{ secrets.SSH_PRIVATE_KEY }}
+                    command_timeout: 20m
+                    script: |
+                        cd /root/music-player && \
+                        git status && \
+                        git reset --hard && \
+                        git pull origin master && \
+                        docker-compose up -d --build && \
+                        docker system prune -f
