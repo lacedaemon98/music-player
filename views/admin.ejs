@@ -1279,18 +1279,20 @@
 
           const voices = speechSynthesis.getVoices();
           console.log('[Admin] Available voices:', voices.length);
+          console.log('[Admin] All voices:', voices.map(v => `${v.name} (${v.lang})`).join(', '));
 
-          const viVoice = voices.find(voice =>
-            voice.lang.includes('vi') ||
-            voice.lang.includes('VN') ||
-            voice.name.includes('Vietnam')
-          );
+          // Priority order for Vietnamese voices
+          const viVoice = voices.find(voice => voice.lang === 'vi-VN') || // Exact match first
+                         voices.find(voice => voice.lang.startsWith('vi-')) || // Any Vietnamese
+                         voices.find(voice => voice.name.toLowerCase().includes('vietnam')) || // Name contains Vietnam
+                         voices.find(voice => voice.name.includes('Google') && voice.lang.includes('vi')); // Google Vietnamese
 
           if (viVoice) {
-            console.log('[Admin] Using Vietnamese voice:', viVoice.name);
+            console.log('[Admin] ✓ Using Vietnamese voice:', viVoice.name, viVoice.lang);
             utterance.voice = viVoice;
           } else {
-            console.log('[Admin] No Vietnamese voice found, using default');
+            console.warn('[Admin] ⚠️ No Vietnamese voice found! Using default (may be English)');
+            console.warn('[Admin] Please enable Vietnamese voice in browser settings');
           }
 
           // Estimate speech duration (rough: 150 words per minute for Vietnamese)
