@@ -23,11 +23,14 @@ function normalizeProperCase(text) {
   if (!text) return text;
 
   // Check if text is mostly uppercase (>70% uppercase letters)
-  const uppercaseCount = (text.match(/[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g) || []).length;
-  const letterCount = (text.match(/[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐa-zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/g) || []).length;
+  const uppercaseCount = (text.match(/[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/gi) || []).length;
+  const letterCount = uppercaseCount; // All matched characters are letters
 
-  // If mostly uppercase, convert to title case
-  if (letterCount > 0 && uppercaseCount / letterCount > 0.7) {
+  // Check if text is ALL CAPS or mostly uppercase
+  const textUpperCase = text.toUpperCase();
+  const isAllCaps = text === textUpperCase && uppercaseCount > 0;
+
+  if (isAllCaps || (letterCount > 0 && uppercaseCount / letterCount > 0.7)) {
     return text
       .toLowerCase()
       .split(' ')
