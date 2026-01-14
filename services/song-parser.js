@@ -8,8 +8,8 @@ let model;
 try {
   if (process.env.GOOGLE_AI_API_KEY) {
     genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    logger.info('[SongParser] Gemini initialized for smart parsing');
+    model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    logger.info('[SongParser] Gemini initialized for smart parsing with gemini-2.0-flash');
   }
 } catch (error) {
   logger.warn('[SongParser] Gemini not available, will use rule-based parsing');
