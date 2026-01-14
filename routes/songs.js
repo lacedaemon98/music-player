@@ -4,6 +4,7 @@ const { Song, User, Vote, sequelize } = require('../models');
 const { isAuthenticated, isAdmin, getOrCreateAnonymousUser } = require('../middleware/auth');
 const { ipUserMiddleware } = require('../middleware/ipUser');
 const youtubeService = require('../services/youtube');
+const { parseSongMetadata } = require('../services/song-parser');
 const logger = require('../utils/logger');
 
 // Get queue (all unplayed songs with vote counts)
@@ -301,6 +302,59 @@ router.post('/:id/restore', isAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi rồi, không restore được'
+    });
+  }
+});
+
+// Re-parse song metadata with Gemini AI (admin only)
+router.post('/:id/reparse', isAdmin, async (req, res) => {
+  try {
+    const song = await Song.findByPk(req.params.id);
+
+    if (!song) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy bài này'
+      });
+    }
+
+    // Get original YouTube title
+    const youtubeTitle = song.youtube_title || song.title;
+
+    logger.info(`[Songs] Re-parsing metadata for song ${song.id}: "${youtubeTitle}"`);
+
+    // Parse with Gemini AI
+    const parsed = await parseSongMetadata(youtubeTitle, song.artist);
+
+    // Update song metadata
+    song.title = parsed.title;
+    song.artist = parsed.artist;
+    await song.save();
+
+    logger.info(`[Songs] Re-parsed: "${youtubeTitle}" → Title: "${parsed.title}", Artist: "${parsed.artist}"`);
+
+    // Broadcast updates
+    const io = req.app.get('io');
+    if (song.played) {
+      io.emit('recently_played_updated');
+    } else {
+      io.emit('queue_updated');
+    }
+
+    res.json({
+      success: true,
+      message: 'Đã parse lại metadata thành công',
+      song: {
+        id: song.id,
+        title: song.title,
+        artist: song.artist
+      }
+    });
+  } catch (error) {
+    logger.error('[Songs] Error re-parsing metadata:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi parse lại metadata'
     });
   }
 });
