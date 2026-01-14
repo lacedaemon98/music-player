@@ -1999,8 +1999,23 @@
 
           if (audio.setSinkId) {
             try {
+              const wasPlaying = !audio.paused;
+              const currentTime = audio.currentTime;
+
+              // Pause first, then change device, then resume
+              if (wasPlaying) {
+                audio.pause();
+              }
+
               await audio.setSinkId(deviceId);
               console.log('[Admin] Main audio output device changed to:', deviceName);
+
+              // Resume if was playing
+              if (wasPlaying) {
+                audio.currentTime = currentTime;
+                await audio.play();
+                console.log('[Admin] Resumed playback on new device');
+              }
             } catch (err) {
               console.error('[Admin] Failed to set main audio output device:', err);
             }
@@ -2009,8 +2024,20 @@
           // Also update announcement audio if it's currently playing
           if (currentAnnouncementAudio && currentAnnouncementAudio.setSinkId) {
             try {
+              const wasPlaying = !currentAnnouncementAudio.paused;
+              const currentTime = currentAnnouncementAudio.currentTime;
+
+              if (wasPlaying) {
+                currentAnnouncementAudio.pause();
+              }
+
               await currentAnnouncementAudio.setSinkId(deviceId);
               console.log('[Admin] Announcement audio output device changed to:', deviceName);
+
+              if (wasPlaying) {
+                currentAnnouncementAudio.currentTime = currentTime;
+                await currentAnnouncementAudio.play();
+              }
             } catch (err) {
               console.error('[Admin] Failed to set announcement output device:', err);
             }
