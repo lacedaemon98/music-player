@@ -429,7 +429,7 @@
     }
 
     /* Inactive Overlay */
-    #inactiveOverlay {
+    #inactiveOverlay, #autoplayBlockedOverlay {
       display: none;
       position: fixed;
       top: 0;
@@ -621,6 +621,27 @@
     </div>
   </div>
 
+  <!-- Autoplay Blocked Overlay -->
+  <div id="autoplayBlockedOverlay">
+    <div class="overlay-content">
+      <i class="bi bi-volume-mute-fill" style="font-size: 4rem; margin-bottom: 20px; color: #ff9800;"></i>
+      <h2>Trình duyệt chặn tự động phát nhạc</h2>
+      <p style="font-size: 1.1rem; margin-top: 1rem;">
+        Chrome/Firefox yêu cầu bạn phải click để cho phép phát nhạc.<br>
+        <strong>Chỉ cần click 1 lần, sau đó nhạc sẽ tự động phát.</strong>
+      </p>
+      <p class="mt-4 mb-4">
+        Click nút bên dưới để bật phát nhạc.
+      </p>
+      <button class="btn btn-takeover" onclick="enableAudio()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+        <i class="bi bi-volume-up-fill"></i> Bật Phát Nhạc
+      </button>
+      <div class="mt-3">
+        <small>Nhạc sẽ bắt đầu ngay sau khi bạn click</small>
+      </div>
+    </div>
+  </div>
+
   <!-- Navbar -->
   <nav class="navbar navbar-custom navbar-dark">
     <div class="container-fluid">
@@ -746,9 +767,12 @@
 
           <!-- Now Playing -->
           <div class="now-playing-card" id="nowPlaying">
-            <div>
+            <div id="playerInitPrompt">
               <i class="bi bi-music-note-beamed" style="font-size: 2.5rem; opacity: 0.5;"></i>
               <div class="mt-2">Chưa phát bài nào</div>
+              <button class="btn btn-primary mt-3" onclick="initializePlayer()" id="btnInitPlayer" style="display: none;">
+                <i class="bi bi-play-circle"></i> Khởi động Player
+              </button>
             </div>
           </div>
 
@@ -796,6 +820,21 @@
             <select id="audioOutput" class="form-select">
               <option value="">Đang tải...</option>
             </select>
+
+            <!-- Permission Help -->
+            <div id="devicePermissionHelp" style="display: none; margin-top: 8px;">
+              <small class="text-warning d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill" style="margin-top: 2px;"></i>
+                <div>
+                  Không nhìn thấy tên loa?
+                  <button class="btn btn-sm btn-warning" onclick="requestAudioPermission()" style="padding: 2px 8px; font-size: 0.85rem; margin-left: 4px;">
+                    <i class="bi bi-mic-fill"></i> Cấp quyền
+                  </button>
+                  <br>
+                  <span style="opacity: 0.8; font-size: 0.85rem;">Trình duyệt cần quyền mic để hiển thị tên thiết bị</span>
+                </div>
+              </small>
+            </div>
           </div>
 
         </div>
@@ -863,9 +902,6 @@
       border-color: var(--primary);
       color: white;
     }
-    .schedule-day-btn input {
-      display: none;
-    }
     .time-select-wrapper {
       position: relative;
     }
@@ -932,35 +968,14 @@
 
             <div class="mb-4">
               <label class="form-label"><i class="bi bi-calendar-week"></i>Chọn ngày trong tuần</label>
-              <div class="d-flex flex-wrap gap-2" style="margin-top: 0.5rem;">
-                <label class="schedule-day-btn active">
-                  <input class="schedule-day" type="checkbox" value="1" id="day1" checked>
-                  T2
-                </label>
-                <label class="schedule-day-btn active">
-                  <input class="schedule-day" type="checkbox" value="2" id="day2" checked>
-                  T3
-                </label>
-                <label class="schedule-day-btn active">
-                  <input class="schedule-day" type="checkbox" value="3" id="day3" checked>
-                  T4
-                </label>
-                <label class="schedule-day-btn active">
-                  <input class="schedule-day" type="checkbox" value="4" id="day4" checked>
-                  T5
-                </label>
-                <label class="schedule-day-btn active">
-                  <input class="schedule-day" type="checkbox" value="5" id="day5" checked>
-                  T6
-                </label>
-                <label class="schedule-day-btn">
-                  <input class="schedule-day" type="checkbox" value="6" id="day6">
-                  T7
-                </label>
-                <label class="schedule-day-btn">
-                  <input class="schedule-day" type="checkbox" value="0" id="day0">
-                  CN
-                </label>
+              <div class="d-flex flex-wrap gap-2" style="margin-top: 0.5rem;" id="scheduleDays">
+                <div class="schedule-day-btn active" data-day="1">T2</div>
+                <div class="schedule-day-btn active" data-day="2">T3</div>
+                <div class="schedule-day-btn active" data-day="3">T4</div>
+                <div class="schedule-day-btn active" data-day="4">T5</div>
+                <div class="schedule-day-btn active" data-day="5">T6</div>
+                <div class="schedule-day-btn" data-day="6">T7</div>
+                <div class="schedule-day-btn" data-day="0">CN</div>
               </div>
               <small class="text-muted mt-2 d-block">Chọn ít nhất 1 ngày</small>
             </div>
@@ -1105,17 +1120,6 @@
   </div>
 
   <script>
-    // Handle day button toggle
-    document.querySelectorAll('.schedule-day-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        if (e.target.tagName === 'LABEL') {
-          const checkbox = this.querySelector('input');
-          checkbox.checked = !checkbox.checked;
-          this.classList.toggle('active', checkbox.checked);
-        }
-      });
-    });
-
     // Update schedule volume slider visual feedback
     function updateScheduleVolumeSlider(slider) {
       const value = slider.value;
@@ -1130,18 +1134,14 @@
       if (slider) {
         updateScheduleVolumeSlider(slider);
       }
+    });
 
-      // Add event listeners for schedule day buttons
-      document.querySelectorAll('.schedule-day').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-          const label = this.closest('.schedule-day-btn');
-          if (this.checked) {
-            label.classList.add('active');
-          } else {
-            label.classList.remove('active');
-          }
-        });
-      });
+    // Handle schedule day button toggle (simple div-based approach)
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.schedule-day-btn');
+      if (btn) {
+        btn.classList.toggle('active');
+      }
     });
   </script>
 
@@ -1159,6 +1159,78 @@
 
     // Track current announcement audio (for output device switching)
     let currentAnnouncementAudio = null;
+
+    // Autoplay handling
+    let pendingPlayAction = null;
+    let audioUnlocked = false;
+
+    // Initialize player function (called by user click)
+    function initializePlayer() {
+      console.log('[Admin] User initializing player...');
+
+      // Create temporary audio to unlock (don't use main player)
+      const tempAudio = new Audio();
+      tempAudio.volume = 0;
+      tempAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+      tempAudio.play().then(() => {
+        console.log('[Admin] ✓ Player initialized successfully');
+        audioUnlocked = true;
+        tempAudio.remove();
+
+        // Hide init button
+        document.getElementById('btnInitPlayer').style.display = 'none';
+      }).catch(err => {
+        console.error('[Admin] Failed to initialize:', err);
+      });
+    }
+
+    // Initialize audio on page load to unlock autoplay
+    window.addEventListener('DOMContentLoaded', () => {
+      // Create temporary audio to unlock (don't use main player)
+      const tempAudio = new Audio();
+      tempAudio.volume = 0;
+      tempAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+      const playPromise = tempAudio.play();
+
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log('[Admin] ✓ Audio unlocked automatically');
+          tempAudio.remove();
+          audioUnlocked = true;
+          // No need to show init button
+        }).catch(() => {
+          console.log('[Admin] ⚠️ Autoplay blocked - showing init button');
+          audioUnlocked = false;
+          // Show init button
+          document.getElementById('btnInitPlayer').style.display = 'inline-block';
+        });
+      }
+    });
+
+    function handleAutoplayError(playFunction) {
+      // If already unlocked, just play
+      if (audioUnlocked) {
+        playFunction();
+        return;
+      }
+
+      // If autoplay was blocked, show overlay and store the action
+      pendingPlayAction = playFunction;
+      document.getElementById('autoplayBlockedOverlay').style.display = 'block';
+    }
+
+    function enableAudio() {
+      console.log('[Admin] User clicked to enable audio');
+      audioUnlocked = true;
+      document.getElementById('autoplayBlockedOverlay').style.display = 'none';
+
+      // Execute pending play action if exists
+      if (pendingPlayAction) {
+        console.log('[Admin] Executing pending play action');
+        pendingPlayAction();
+        pendingPlayAction = null;
+      }
+    }
 
     socket.on('connect', () => {
       console.log('[Admin] Socket connected:', socket.id);
@@ -1261,6 +1333,13 @@
       const audio = document.getElementById('audioPlayer');
       const btnPlayPause = document.getElementById('btnPlayPause');
 
+      // Stop any currently playing music
+      if (!audio.paused) {
+        console.log('[Admin] Stopping current music before announcement');
+        audio.pause();
+        audio.currentTime = 0;
+      }
+
       audio.volume = data.volume / 100;
 
       // Update volume slider UI
@@ -1332,7 +1411,12 @@
             btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
           }).catch(err => {
             console.error('[Admin] Error playing music:', err);
-            btnPlayPause.disabled = false;
+            if (err.name === 'NotAllowedError') {
+              // Autoplay blocked - show overlay and retry after user click
+              handleAutoplayError(() => playMusic());
+            } else {
+              btnPlayPause.disabled = false;
+            }
           });
         }
 
@@ -1353,7 +1437,15 @@
         announcementAudio.play().catch(err => {
           console.error('[Admin] Failed to play announcement:', err);
           currentAnnouncementAudio = null; // Clear reference on play failure
-          playMusic();
+
+          if (err.name === 'NotAllowedError') {
+            // Autoplay blocked - show overlay and retry after user click
+            handleAutoplayError(() => {
+              announcementAudio.play().catch(() => playMusic());
+            });
+          } else {
+            playMusic();
+          }
         });
 
       } else if ('speechSynthesis' in window && data.announcement_text) {
@@ -1492,7 +1584,12 @@
           };
         }).catch(err => {
           console.error('[Admin] Error playing music:', err);
-          alert('Không thể phát nhạc: ' + err.message);
+          if (err.name === 'NotAllowedError') {
+            // Autoplay blocked - show overlay and retry after user click
+            handleAutoplayError(() => playMusic());
+          } else {
+            alert('Không thể phát nhạc: ' + err.message);
+          }
         });
       }
     });
@@ -1511,6 +1608,15 @@
         const audio = document.getElementById('audioPlayer');
         const btnPlayPause = document.getElementById('btnPlayPause');
 
+        // Stop any currently playing music
+        if (!audio.paused) {
+          console.log('[Admin] Stopping current music before new song');
+          audio.pause();
+          audio.currentTime = 0;
+        }
+
+        console.log('[Admin] Setting audio source:', data.stream_url);
+        console.log('[Admin] Setting volume:', data.volume / 100);
         audio.src = data.stream_url;
         audio.volume = data.volume / 100;
 
@@ -1532,6 +1638,7 @@
         `;
 
         // Play and handle errors
+        console.log('[Admin] Attempting to play audio...');
         audio.play().then(() => {
           console.log('[Admin] Playing:', data.song.title);
           btnPlayPause.disabled = false;
@@ -1547,8 +1654,18 @@
           }
         }).catch(err => {
           console.error('[Admin] Play error:', err);
-          alert('Không thể phát nhạc: ' + err.message);
-          btnPlayPause.disabled = true;
+          console.error('[Admin] Error name:', err.name);
+          console.error('[Admin] Error message:', err.message);
+          console.error('[Admin] Audio state - paused:', audio.paused, 'volume:', audio.volume, 'src:', audio.src);
+
+          if (err.name === 'NotAllowedError') {
+            console.log('[Admin] Autoplay blocked, showing overlay...');
+            // Autoplay blocked - show overlay and retry after user click
+            handleAutoplayError(() => audio.play());
+          } else {
+            alert('Không thể phát nhạc: ' + err.message);
+            btnPlayPause.disabled = true;
+          }
         });
 
         // Auto-play next song when current finishes
@@ -1741,9 +1858,10 @@
       document.getElementById('navRemainingAdds').textContent = data.remaining_adds;
     }
 
-    async function loadAudioDevices() {
+    async function loadAudioDevices(skipPermissionRequest = false) {
       try {
         const select = document.getElementById('audioOutput');
+        const helpDiv = document.getElementById('devicePermissionHelp');
 
         // First, try to enumerate devices
         let devices = await navigator.mediaDevices.enumerateDevices();
@@ -1752,8 +1870,8 @@
         // Check if we have device labels
         const hasLabels = audioOutputs.some(d => d.label && d.label.trim() !== '');
 
-        // If no labels, request audio permission to get device labels
-        if (!hasLabels) {
+        // If no labels and not skipping, silently request permission
+        if (!hasLabels && !skipPermissionRequest) {
           try {
             console.log('[Admin] Requesting audio permission to get device labels...');
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1764,10 +1882,25 @@
             // Now re-enumerate to get actual labels
             devices = await navigator.mediaDevices.enumerateDevices();
             audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-            console.log('[Admin] Got device labels after permission');
+            const gotLabels = audioOutputs.some(d => d.label && d.label.trim() !== '');
+
+            if (gotLabels) {
+              console.log('[Admin] Got device labels after permission');
+              helpDiv.style.display = 'none';
+            } else {
+              console.log('[Admin] Still no labels after permission');
+              helpDiv.style.display = 'block';
+            }
           } catch (permErr) {
             console.log('[Admin] Audio permission denied, using generic labels');
+            helpDiv.style.display = 'block';
           }
+        } else if (!hasLabels) {
+          // Show help if still no labels
+          helpDiv.style.display = 'block';
+        } else {
+          // Hide help if we have labels
+          helpDiv.style.display = 'none';
         }
 
         if (audioOutputs.length === 0) {
@@ -1780,7 +1913,11 @@
           return `<option value="${d.deviceId}">${label}</option>`;
         }).join('');
 
-        select.addEventListener('change', async (e) => {
+        // Remove existing listener to avoid duplicates
+        const newSelect = select.cloneNode(true);
+        select.parentNode.replaceChild(newSelect, select);
+
+        newSelect.addEventListener('change', async (e) => {
           const audio = document.getElementById('audioPlayer');
           const deviceId = e.target.value;
           const deviceName = e.target.options[e.target.selectedIndex].text;
@@ -1810,6 +1947,27 @@
       }
     }
 
+    // Manual permission request when user clicks button
+    async function requestAudioPermission() {
+      try {
+        console.log('[Admin] User requested audio permission...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Immediately stop the stream
+        stream.getTracks().forEach(track => track.stop());
+
+        console.log('[Admin] Permission granted, reloading devices...');
+
+        // Reload devices to get real labels
+        await loadAudioDevices(true);
+
+        alert('✓ Đã cấp quyền thành công! Bây giờ bạn có thể thấy tên loa.');
+      } catch (err) {
+        console.error('[Admin] Permission denied:', err);
+        alert('❌ Không thể cấp quyền. Vui lòng kiểm tra cài đặt trình duyệt.');
+      }
+    }
+
     document.getElementById('volumeSlider').addEventListener('input', async (e) => {
       if (!isActiveTab || !socket.connected) {
         alert('Tab này không còn hoạt động.');
@@ -1830,9 +1988,9 @@
       const minute = document.getElementById('scheduleMinute').value;
       const hour = document.getElementById('scheduleHour').value;
 
-      // Get selected days
-      const days = Array.from(document.querySelectorAll('.schedule-day:checked'))
-        .map(cb => cb.value)
+      // Get selected days from active divs
+      const days = Array.from(document.querySelectorAll('.schedule-day-btn.active'))
+        .map(btn => btn.dataset.day)
         .sort((a, b) => a - b)
         .join(',');
 
@@ -1858,19 +2016,16 @@
         document.getElementById('scheduleMinute').value = minute;
         document.getElementById('scheduleHour').value = hour;
 
-        // Uncheck all days first
+        // Clear all days first
         document.querySelectorAll('.schedule-day-btn').forEach(btn => {
-          const checkbox = btn.querySelector('input');
-          checkbox.checked = false;
           btn.classList.remove('active');
         });
 
-        // Check selected days
+        // Set selected days
         days.forEach(day => {
-          const checkbox = document.querySelector(`.schedule-day[value="${day}"]`);
-          if (checkbox) {
-            checkbox.checked = true;
-            checkbox.closest('.schedule-day-btn').classList.add('active');
+          const btn = document.querySelector(`.schedule-day-btn[data-day="${day}"]`);
+          if (btn) {
+            btn.classList.add('active');
           }
         });
       } catch (error) {
@@ -1887,9 +2042,12 @@
       // Reset form to defaults
       document.getElementById('scheduleForm').reset();
       document.querySelectorAll('.schedule-day-btn').forEach((btn, i) => {
-        const checkbox = btn.querySelector('input');
-        checkbox.checked = i < 5; // Check T2-T6
-        btn.classList.toggle('active', checkbox.checked);
+        // Set T2-T6 as active (first 5 buttons)
+        if (i < 5) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
       });
       document.getElementById('scheduleHour').value = '17';
       document.getElementById('scheduleMinute').value = '0';
@@ -2125,7 +2283,7 @@
     }
 
     function formatTime(seconds) {
-      if (isNaN(seconds)) return '0:00';
+      if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -2167,6 +2325,7 @@
     const btnPlayPause = document.getElementById('btnPlayPause');
 
     audio.addEventListener('loadedmetadata', () => {
+      console.log('[Admin] Metadata loaded - duration:', audio.duration);
       btnPlayPause.disabled = false;
       document.getElementById('duration').textContent = formatTime(audio.duration);
     });
@@ -2174,16 +2333,25 @@
     audio.addEventListener('timeupdate', updateProgress);
 
     audio.addEventListener('play', () => {
+      console.log('[Admin] Audio play event triggered');
       btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
     });
 
     audio.addEventListener('pause', () => {
+      console.log('[Admin] Audio pause event triggered');
       btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
     });
 
     audio.addEventListener('ended', () => {
+      console.log('[Admin] Audio ended event triggered');
       btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
       btnPlayPause.disabled = true;
+    });
+
+    audio.addEventListener('error', (e) => {
+      console.error('[Admin] Audio error event:', e);
+      console.error('[Admin] Audio error code:', audio.error ? audio.error.code : 'none');
+      console.error('[Admin] Audio error message:', audio.error ? audio.error.message : 'none');
     });
 
     // Add error handler to catch audio loading errors
