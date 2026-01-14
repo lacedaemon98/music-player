@@ -21,7 +21,7 @@ async function setDedication() {
     console.log(`✅ Tìm thấy bài: ${song.title} - ${song.artist || 'N/A'} (ID: ${song.id})`);
 
     // Set dedication message
-    song.dedication_message = 'Team chị Hoa bác sĩ Minh Trung gửi tặng anh chị em';
+    song.dedication_message = 'Đi qua những ngày mưa để thấy yêu thêm những ngày nắng';
     await song.save();
 
     console.log('✅ Đã set dedication message:');
