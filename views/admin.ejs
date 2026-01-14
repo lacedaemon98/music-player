@@ -1144,6 +1144,9 @@
     // Track takeover flag
     window.adminTakeover = window.adminTakeover || false;
 
+    // Track current announcement audio (for output device switching)
+    let currentAnnouncementAudio = null;
+
     socket.on('connect', () => {
       console.log('[Admin] Socket connected:', socket.id);
 
@@ -1236,6 +1239,12 @@
     socket.on('play_announcement', (data) => {
       console.log('[Admin] Received play_announcement event:', data);
 
+      // Stop any existing announcement audio
+      if (currentAnnouncementAudio) {
+        currentAnnouncementAudio.pause();
+        currentAnnouncementAudio = null;
+      }
+
       const audio = document.getElementById('audioPlayer');
       const btnPlayPause = document.getElementById('btnPlayPause');
 
@@ -1272,6 +1281,9 @@
         // Create audio element for announcement
         const announcementAudio = new Audio(data.announcement_audio_url);
         announcementAudio.volume = 1.0;
+
+        // Save reference for output device switching
+        currentAnnouncementAudio = announcementAudio;
 
         // Set output device to match main audio player
         const selectedDevice = document.getElementById('audioOutput').value;
@@ -1313,18 +1325,21 @@
 
         announcementAudio.onended = () => {
           console.log('[Admin] ElevenLabs announcement ended, starting music');
+          currentAnnouncementAudio = null; // Clear reference
           playMusic();
         };
 
         announcementAudio.onerror = (err) => {
           console.error('[Admin] Error playing announcement audio:', err);
           console.warn('[Admin] Falling back to immediate music play');
+          currentAnnouncementAudio = null; // Clear reference
           playMusic();
         };
 
         // Play the announcement audio
         announcementAudio.play().catch(err => {
           console.error('[Admin] Failed to play announcement:', err);
+          currentAnnouncementAudio = null; // Clear reference on play failure
           playMusic();
         });
 
@@ -1472,6 +1487,12 @@
     // Handle play song event
     socket.on('play_song', (data) => {
       console.log('[Admin] Received play_song event:', data);
+
+      // Stop any existing announcement audio
+      if (currentAnnouncementAudio) {
+        currentAnnouncementAudio.pause();
+        currentAnnouncementAudio = null;
+      }
 
       if (data.stream_url) {
         const audio = document.getElementById('audioPlayer');
@@ -1748,12 +1769,25 @@
 
         select.addEventListener('change', async (e) => {
           const audio = document.getElementById('audioPlayer');
+          const deviceId = e.target.value;
+          const deviceName = e.target.options[e.target.selectedIndex].text;
+
           if (audio.setSinkId) {
             try {
-              await audio.setSinkId(e.target.value);
-              console.log('[Admin] Output device changed to:', e.target.options[e.target.selectedIndex].text);
+              await audio.setSinkId(deviceId);
+              console.log('[Admin] Main audio output device changed to:', deviceName);
             } catch (err) {
-              console.error('[Admin] Failed to set output device:', err);
+              console.error('[Admin] Failed to set main audio output device:', err);
+            }
+          }
+
+          // Also update announcement audio if it's currently playing
+          if (currentAnnouncementAudio && currentAnnouncementAudio.setSinkId) {
+            try {
+              await currentAnnouncementAudio.setSinkId(deviceId);
+              console.log('[Admin] Announcement audio output device changed to:', deviceName);
+            } catch (err) {
+              console.error('[Admin] Failed to set announcement output device:', err);
             }
           }
         });
