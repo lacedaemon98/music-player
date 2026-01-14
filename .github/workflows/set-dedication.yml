@@ -1,0 +1,26 @@
+name: Set Dedication Message for Trú Mưa
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  set-dedication:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --production
+
+      - name: Set dedication message
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV: production
+        run: node scripts/set-dedication-tru-mua.js
