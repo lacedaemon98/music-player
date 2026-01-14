@@ -30,7 +30,7 @@ let model;
 try {
   if (process.env.GOOGLE_AI_API_KEY) {
     genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     logger.info('[Gemini] Client initialized successfully');
   } else {
     logger.warn('[Gemini] No API key found, will use fallback templates');

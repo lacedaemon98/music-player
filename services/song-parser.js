@@ -8,7 +8,7 @@ let model;
 try {
   if (process.env.GOOGLE_AI_API_KEY) {
     genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     logger.info('[SongParser] Gemini initialized for smart parsing');
   }
 } catch (error) {
@@ -82,13 +82,23 @@ function parseWithRules(youtubeTitle, uploaderName) {
       .trim();
 
     // Try to split by common separators
-    const separators = [' - ', ' – ', ' | ', ' • '];
+    const separators = [' - ', ' – ', ' | ', ' • ', ' _ '];
     let parts = null;
 
     for (const sep of separators) {
       if (title.includes(sep)) {
         parts = title.split(sep).map(p => p.trim());
         break;
+      }
+    }
+
+    // Special handling for _ separator (common in Vietnamese YouTube titles)
+    // e.g., "VẠN LÝ SẦU _ 1 bài cực hay của" → take only first part before _
+    if (!parts && title.includes('_')) {
+      const underscoreParts = title.split('_').map(p => p.trim());
+      if (underscoreParts.length >= 2) {
+        // First part is usually the song title
+        parts = [underscoreParts[0]];
       }
     }
 

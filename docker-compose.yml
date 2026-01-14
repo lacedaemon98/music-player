@@ -14,8 +14,9 @@ services:
       - LOG_LEVEL=info
       - TZ=Asia/Ho_Chi_Minh
       # AI API Key for DJ announcements (Gemini text generation)
-      # TTS uses browser Web Speech API (no server-side key needed)
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+      # ElevenLabs API for high-quality Vietnamese TTS (optional, falls back to browser Web Speech API)
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
     volumes:
       # Persist database
       - music-player-data:/app/data
