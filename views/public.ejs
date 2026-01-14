@@ -915,15 +915,28 @@
     }
 
     // Send message
+    let isSendingMessage = false; // Prevent duplicate sends
+
     async function sendMessage(event) {
       event.preventDefault();
 
+      // Prevent duplicate sends while request is in progress
+      if (isSendingMessage) {
+        return;
+      }
+
       const input = document.getElementById('chatInput');
+      const sendButton = document.getElementById('btnSendMessage');
       const message = input.value.trim();
 
       if (!message) return;
 
       try {
+        // Disable input and button during send
+        isSendingMessage = true;
+        input.disabled = true;
+        sendButton.disabled = true;
+
         const res = await fetch('/api/chat/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -941,6 +954,12 @@
       } catch (error) {
         console.error('Error sending message:', error);
         alert('Lỗi gửi tin nhắn rồi bạn ơi');
+      } finally {
+        // Re-enable input and button
+        isSendingMessage = false;
+        input.disabled = false;
+        sendButton.disabled = false;
+        input.focus();
       }
     }
 
