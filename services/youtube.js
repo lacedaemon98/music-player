@@ -58,7 +58,7 @@ class YouTubeService {
   }
 
   /**
-   * Get audio stream URL (highest quality)
+   * Get audio stream URL (highest quality) using yt-dlp
    */
   async getStreamUrl(url) {
     try {
@@ -66,21 +66,28 @@ class YouTubeService {
         throw new Error('Invalid YouTube URL');
       }
 
-      const info = await ytdl.getInfo(url);
+      // Strip playlist parameters
+      let cleanUrl = url.split('&list=')[0].split('?list=')[0];
 
-      // Get audio-only formats
-      const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+      // Use yt-dlp to get best audio stream URL
+      const { execSync } = require('child_process');
+      const result = execSync(
+        `yt-dlp -f bestaudio --get-url "${cleanUrl}"`,
+        {
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 60000 // 60 second timeout (increased from 30s)
+        }
+      );
 
-      if (audioFormats.length === 0) {
-        throw new Error('No audio format available');
+      const streamUrl = result.trim();
+
+      if (!streamUrl || !streamUrl.startsWith('http')) {
+        throw new Error('Invalid stream URL received');
       }
 
-      // Sort by bitrate and get highest quality
-      audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
-      const bestAudio = audioFormats[0];
-
-      logger.info(`[YouTube] Stream URL obtained: ${bestAudio.audioBitrate}kbps`);
-      return bestAudio.url;
+      logger.info(`[YouTube] Stream URL obtained successfully`);
+      return streamUrl;
     } catch (error) {
       logger.error('[YouTube] Error getting stream URL:', error.message);
       throw new Error('Không thể lấy stream URL từ YouTube');
@@ -95,7 +102,21 @@ class YouTubeService {
       if (!this.isValidUrl(url)) {
         return null;
       }
-      return ytdl.getVideoID(url);
+
+      // Extract video ID from various YouTube URL formats
+      const regexList = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+        /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
+      ];
+
+      for (const regex of regexList) {
+        const match = url.match(regex);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+
+      return null;
     } catch (error) {
       return null;
     }
