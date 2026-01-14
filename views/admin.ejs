@@ -1632,10 +1632,17 @@
           }
 
           audio.onended = () => {
-            console.log('[Admin] Song ended, playing next...');
+            console.log('[Admin] Song ended');
             btnPlayPause.disabled = true;
             socket.emit('song_ended_notify');
-            playNext();
+
+            // Only auto-play next if server allows it
+            if (data.auto_next !== false) {
+              console.log('[Admin] Auto-playing next song...');
+              playNext();
+            } else {
+              console.log('[Admin] Auto-next disabled, stopping playback');
+            }
           };
         }).catch(err => {
           console.error('[Admin] Error playing music:', err);
@@ -1723,16 +1730,21 @@
           }
         });
 
-        // Auto-play next song when current finishes
+        // Auto-play next song when current finishes (if enabled)
         audio.onended = () => {
-          console.log('[Admin] Song ended, notifying clients and playing next...');
+          console.log('[Admin] Song ended');
           btnPlayPause.disabled = true;
 
           // Notify all clients that song has ended
           socket.emit('song_ended_notify');
 
-          // Play next song
-          playNext();
+          // Only auto-play next if server allows it
+          if (data.auto_next !== false) {
+            console.log('[Admin] Auto-playing next song...');
+            playNext();
+          } else {
+            console.log('[Admin] Auto-next disabled, stopping playback');
+          }
         };
       } else {
         console.error('[Admin] No stream URL provided');

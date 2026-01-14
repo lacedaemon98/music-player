@@ -142,7 +142,7 @@ router.post('/next', isAdmin, async (req, res) => {
       playbackState.position = 0;
       await playbackState.save();
 
-      // Broadcast play event
+      // Broadcast play event (manual next - no auto-next)
       io.emit('play_song', {
         song: {
           id: null,
@@ -151,7 +151,8 @@ router.post('/next', isAdmin, async (req, res) => {
           thumbnail_url: '/images/offline-music.png'
         },
         stream_url: streamUrl,
-        volume: playbackState.volume
+        volume: playbackState.volume,
+        auto_next: false
       });
 
       return res.json({
@@ -211,7 +212,8 @@ router.post('/next', isAdmin, async (req, res) => {
         song: topSong.toJSON(),
         announcement_text: announcementData.text,
         stream_url: streamUrl,
-        volume: playbackState.volume
+        volume: playbackState.volume,
+        auto_next: false // Manual next - no auto-next
       };
 
       // Add audio URL if TTS audio was generated
@@ -226,11 +228,12 @@ router.post('/next', isAdmin, async (req, res) => {
 
       io.emit('play_announcement', payload);
     } else {
-      logger.info('[Playback] Broadcasting play_song event (no announcement)');
+      logger.info('[Playback] Broadcasting play_song event (manual next - no auto-next)');
       io.emit('play_song', {
         song: topSong.toJSON(),
         stream_url: streamUrl,
-        volume: playbackState.volume
+        volume: playbackState.volume,
+        auto_next: false
       });
     }
 

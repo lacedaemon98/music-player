@@ -143,7 +143,9 @@ class SchedulerService {
 
       // Play multiple songs if requested
       for (let i = 0; i < songCount; i++) {
-        await this.playTopSong(volume);
+        // Only auto-next if this is NOT the last song
+        const autoNext = (i < songCount - 1);
+        await this.playTopSong(volume, autoNext);
 
         // Wait between songs if playing multiple (2 seconds)
         if (i < songCount - 1) {
@@ -159,8 +161,10 @@ class SchedulerService {
 
   /**
    * Play the top voted song from queue
+   * @param {number} volume - Volume level (0-100)
+   * @param {boolean} autoNext - Whether to auto-play next song when current ends
    */
-  async playTopSong(volume) {
+  async playTopSong(volume, autoNext = true) {
     try {
       // Get top voted song
       const topSong = await Song.getTopVoted();
@@ -190,10 +194,11 @@ class SchedulerService {
               thumbnail_url: '/images/offline-music.png'
             },
             stream_url: streamUrl,
-            volume: volume
+            volume: volume,
+            auto_next: autoNext
           });
 
-          logger.info('[Scheduler] Broadcasted offline music play event');
+          logger.info(`[Scheduler] Broadcasted offline music play event (auto_next: ${autoNext})`);
         } else {
           logger.error('[Scheduler] Socket.io not initialized!');
         }
@@ -215,14 +220,15 @@ class SchedulerService {
         this.io.emit('play_song', {
           song: topSong.toJSON(),
           stream_url: streamUrl,
-          volume: volume
+          volume: volume,
+          auto_next: autoNext
         });
 
         // Also broadcast queue and recently played updates
         this.io.emit('queue_updated');
         this.io.emit('recently_played_updated');
 
-        logger.info('[Scheduler] Broadcasted play_song event to all clients');
+        logger.info(`[Scheduler] Broadcasted play_song event (auto_next: ${autoNext})`);
       } else {
         logger.error('[Scheduler] Socket.io not initialized!');
       }
