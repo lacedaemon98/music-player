@@ -18,8 +18,15 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
       lock: transaction.LOCK.UPDATE
     });
 
-    // Check and reset votes if new day
-    await req.user.checkAndResetVotes();
+    // Check and reset votes if new day (within transaction)
+    const today = new Date().toDateString();
+    const lastReset = req.user.last_vote_reset ? new Date(req.user.last_vote_reset).toDateString() : null;
+
+    if (lastReset !== today) {
+      req.user.daily_votes = 0;
+      req.user.last_vote_reset = new Date();
+      await req.user.save({ transaction });
+    }
 
     // Check if song exists and is not played
     const song = await Song.findByPk(songId, { transaction });
@@ -41,7 +48,8 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     }
 
     // Check if user has votes remaining (don't increment yet)
-    const canVote = await req.user.canVote();
+    const maxVotes = req.user.is_admin ? 999 : 3;
+    const canVote = (req.user.daily_votes || 0) < maxVotes;
 
     if (!canVote) {
       await transaction.rollback();
@@ -58,8 +66,9 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
       song_id: songId
     }, { transaction });
 
-    // Only increment the counter AFTER successful vote creation
-    await req.user.incrementVote();
+    // Only increment the counter AFTER successful vote creation (within transaction)
+    req.user.daily_votes = (req.user.daily_votes || 0) + 1;
+    await req.user.save({ transaction });
 
     // Get updated vote count
     const voteCount = await Vote.count({
@@ -76,11 +85,15 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     const io = req.app.get('io');
     io.emit('queue_updated');
 
+    // Calculate remaining votes
+    const maxVotes = req.user.is_admin ? 999 : 3;
+    const remaining = maxVotes - (req.user.daily_votes || 0);
+
     return res.json({
       success: true,
       voted: true,
       vote_count: voteCount,
-      remaining_votes: req.user.getRemainingVotes()
+      remaining_votes: remaining
     });
   } catch (error) {
     await transaction.rollback();
