@@ -755,6 +755,51 @@
           </div>
         </div>
 
+        <!-- Upload Offline Music (Fallback when YouTube down) -->
+        <div class="card mt-4">
+          <div class="card-header-custom" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+            <i class="bi bi-cloud-upload-fill"></i>
+            Upload nhạc offline (Fallback)
+          </div>
+          <div class="card-body p-4">
+            <div class="alert alert-warning" style="font-size: 0.9rem;">
+              <i class="bi bi-info-circle-fill"></i>
+              <strong>Chức năng này dùng để upload nhạc dự phòng khi YouTube lỗi.</strong><br>
+              Nhạc sẽ được lưu trong thư mục offline-music và có thể thêm vào queue từ danh sách nhạc offline.
+            </div>
+
+            <form id="uploadMusicForm" onsubmit="uploadOfflineMusic(event)">
+              <div class="mb-3">
+                <label for="musicFile" class="form-label" style="font-weight: 600;">
+                  <i class="bi bi-file-earmark-music"></i> Chọn file nhạc
+                </label>
+                <input
+                  type="file"
+                  class="form-control"
+                  id="musicFile"
+                  accept=".mp3,.m4a"
+                  multiple
+                  style="border-radius: 10px;"
+                >
+                <small class="text-muted">
+                  <i class="bi bi-info-circle"></i> Chấp nhận: .mp3, .m4a • Tối đa 50MB/file • Tối đa 10 files cùng lúc
+                </small>
+              </div>
+
+              <button class="btn px-4 w-100" type="submit" id="btnUploadMusic" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; border: none; font-weight: 600;">
+                <i class="bi bi-cloud-upload"></i> Upload nhạc
+              </button>
+            </form>
+
+            <div id="uploadProgress" style="display: none; margin-top: 15px;">
+              <div class="progress" style="height: 25px; border-radius: 10px;">
+                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%; background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">0%</div>
+              </div>
+              <small id="uploadStatus" class="text-muted mt-2 d-block"></small>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- Right Column: Audio Player -->
@@ -2232,6 +2277,97 @@
     document.getElementById('dedicationMessage').addEventListener('input', function() {
       document.getElementById('messageCounter').textContent = this.value.length;
     });
+
+    // Upload offline music
+    async function uploadOfflineMusic(event) {
+      event.preventDefault();
+
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+
+      const fileInput = document.getElementById('musicFile');
+      const files = fileInput.files;
+      const btnUpload = document.getElementById('btnUploadMusic');
+      const progressDiv = document.getElementById('uploadProgress');
+      const progressBar = document.getElementById('uploadProgressBar');
+      const statusText = document.getElementById('uploadStatus');
+
+      if (!files || files.length === 0) {
+        alert('Vui lòng chọn file nhạc để upload');
+        return;
+      }
+
+      // Validate file sizes
+      for (let file of files) {
+        if (file.size > 50 * 1024 * 1024) {
+          alert(`File "${file.name}" quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 50MB/file.`);
+          return;
+        }
+      }
+
+      btnUpload.disabled = true;
+      btnUpload.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang upload...';
+      progressDiv.style.display = 'block';
+
+      try {
+        const formData = new FormData();
+        for (let file of files) {
+          formData.append('music', file);
+        }
+
+        const xhr = new XMLHttpRequest();
+
+        // Progress tracking
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = percent + '%';
+            statusText.textContent = `Đã upload ${(e.loaded / 1024 / 1024).toFixed(1)}MB / ${(e.total / 1024 / 1024).toFixed(1)}MB`;
+          }
+        });
+
+        // Complete handling
+        const response = await new Promise((resolve, reject) => {
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+              resolve(JSON.parse(xhr.responseText));
+            } else {
+              reject(new Error(xhr.statusText));
+            }
+          });
+          xhr.addEventListener('error', () => reject(new Error('Network error')));
+          xhr.open('POST', files.length > 1 ? '/api/upload/music/batch' : '/api/upload/music');
+          xhr.send(formData);
+        });
+
+        if (response.success) {
+          fileInput.value = '';
+          progressBar.style.width = '100%';
+          progressBar.textContent = '100%';
+          statusText.textContent = '✅ Upload thành công!';
+
+          setTimeout(() => {
+            progressDiv.style.display = 'none';
+            progressBar.style.width = '0%';
+            statusText.textContent = '';
+          }, 3000);
+
+          alert(`✅ ${response.message}\n\nFile(s) đã được upload và sẵn sàng sử dụng.`);
+        } else {
+          throw new Error(response.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error uploading music:', error);
+        progressDiv.style.display = 'none';
+        alert('❌ Upload thất bại: ' + error.message);
+      } finally {
+        btnUpload.disabled = false;
+        btnUpload.innerHTML = '<i class="bi bi-cloud-upload"></i> Upload nhạc';
+      }
+    }
 
     async function deleteSong(id) {
       if (!confirm('Bạn có chắc muốn xóa bài hát này khỏi sảnh chờ?')) return;

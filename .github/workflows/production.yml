@@ -19,8 +19,18 @@ jobs:
                     command_timeout: 20m
                     script: |
                         cd /root/music-player && \
+                        echo "📥 Fetching latest code..." && \
                         git status && \
                         git reset --hard && \
                         git pull origin master && \
-                        docker compose up -d --build && \
-                        docker system prune -f
+                        echo "🐳 Rebuilding and restarting Docker containers..." && \
+                        docker compose down && \
+                        docker compose build --no-cache && \
+                        docker compose up -d && \
+                        echo "🧹 Cleaning up unused Docker resources..." && \
+                        docker system prune -f && \
+                        echo "✅ Deployment completed!" && \
+                        echo "📊 Container status:" && \
+                        docker compose ps && \
+                        echo "📝 Recent logs:" && \
+                        docker compose logs --tail 20

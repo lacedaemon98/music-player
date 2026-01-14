@@ -86,6 +86,7 @@ const voteRoutes = require('./routes/votes');
 const playbackRoutes = require('./routes/playback');
 const scheduleRoutes = require('./routes/schedules');
 const chatRoutes = require('./routes/chat');
+const uploadRoutes = require('./routes/upload');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -94,6 +95,7 @@ app.use('/api/votes', voteRoutes);
 app.use('/api/playback', playbackRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // View routes
 app.get('/', (req, res) => {
