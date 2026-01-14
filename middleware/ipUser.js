@@ -89,10 +89,16 @@ async function ipUserMiddleware(req, res, next) {
       });
       logger.info(`[IP User] Created new anonymous user with fingerprint: ${fingerprint}`);
     } else {
-      // Update last seen and IP (in case user changed network)
-      user.last_seen = new Date();
-      user.ip_address = ipAddress;
-      await user.save();
+      // Update last seen and IP only if more than 1 minute has passed
+      // This reduces database writes significantly during high traffic
+      const now = new Date();
+      const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+
+      if (!user.last_seen || user.last_seen < oneMinuteAgo) {
+        user.last_seen = now;
+        user.ip_address = ipAddress;
+        await user.save();
+      }
     }
 
     // Attach user to request (like Passport does)

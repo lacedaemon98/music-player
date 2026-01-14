@@ -39,23 +39,25 @@ router.get('/queue', ipUserMiddleware, async (req, res) => {
     });
 
     // Add user_voted flag if user is authenticated
-    const songsWithVotes = await Promise.all(songs.map(async (song) => {
+    // Fetch all user votes at once to avoid N+1 query problem
+    let userVotedSongIds = new Set();
+    if (userId) {
+      const userVotes = await Vote.findAll({
+        where: {
+          user_id: userId,
+          song_id: songs.map(s => s.id)
+        },
+        attributes: ['song_id']
+      });
+      userVotedSongIds = new Set(userVotes.map(v => v.song_id));
+    }
+
+    // Map user votes to songs
+    const songsWithVotes = songs.map((song) => {
       const songData = song.toJSON();
-
-      if (userId) {
-        const userVote = await Vote.findOne({
-          where: {
-            user_id: userId,
-            song_id: song.id
-          }
-        });
-        songData.user_voted = !!userVote;
-      } else {
-        songData.user_voted = false;
-      }
-
+      songData.user_voted = userVotedSongIds.has(song.id);
       return songData;
-    }));
+    });
 
     res.json({
       songs: songsWithVotes
