@@ -16,6 +16,33 @@ try {
 }
 
 /**
+ * Normalize ALL CAPS names to proper case (Title Case)
+ * "VẠN LÝ SẦU" → "Vạn Lý Sầu"
+ */
+function normalizeProperCase(text) {
+  if (!text) return text;
+
+  // Check if text is mostly uppercase (>70% uppercase letters)
+  const uppercaseCount = (text.match(/[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g) || []).length;
+  const letterCount = (text.match(/[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐa-zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/g) || []).length;
+
+  // If mostly uppercase, convert to title case
+  if (letterCount > 0 && uppercaseCount / letterCount > 0.7) {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map(word => {
+        if (!word) return word;
+        // Capitalize first letter, keep rest lowercase
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+  }
+
+  return text;
+}
+
+/**
  * Parse song title and artist using Gemini AI
  */
 async function parseWithAI(youtubeTitle) {
@@ -48,6 +75,9 @@ Output: {"title": "Nơi Này Có Anh", "artist": "Sơn Tùng M-TP"}`;
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (parsed.title && parsed.artist) {
+        // Normalize ALL CAPS to proper case
+        parsed.title = normalizeProperCase(parsed.title);
+        parsed.artist = normalizeProperCase(parsed.artist);
         logger.info(`[SongParser] AI parsed: "${youtubeTitle}" → Title: "${parsed.title}", Artist: "${parsed.artist}"`);
         return parsed;
       }
@@ -150,6 +180,10 @@ function parseWithRules(youtubeTitle, uploaderName) {
     if (artist.includes('- Topic') || artist.includes('VEVO')) {
       artist = artist.replace(/\s*-\s*Topic/gi, '').replace(/VEVO/gi, '').trim();
     }
+
+    // Normalize ALL CAPS to proper case
+    title = normalizeProperCase(title);
+    artist = normalizeProperCase(artist);
 
     return { title, artist };
 

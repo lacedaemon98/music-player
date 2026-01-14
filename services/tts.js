@@ -66,7 +66,7 @@ async function textToSpeechGenerate(text, songId) {
     const audioStream = await client.generate({
       voice: voiceId,
       text: text,
-      model_id: 'eleven_multilingual_v2', // Multilingual v2 for better Vietnamese diacritics
+      model_id: 'eleven_turbo_v2_5', // Turbo v2.5 for faster generation
       language_code: 'vi', // Explicitly set Vietnamese language
       voice_settings: {
         stability: 0.5,        // More variation for natural speech
