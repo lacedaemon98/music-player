@@ -214,21 +214,57 @@ class SchedulerService {
 
       logger.info(`[Scheduler] Playing song: ${topSong.title} - ${topSong.artist}`);
 
+      // Generate DJ announcement if dedication message exists
+      const djService = require('./dj');
+      let announcementData = null;
+
+      if (topSong.dedication_message) {
+        try {
+          logger.info('[Scheduler] Generating DJ announcement for:', topSong.title);
+          announcementData = await djService.generateAnnouncement(topSong);
+        } catch (error) {
+          logger.error('[Scheduler] Announcement generation failed, continuing without it:', error);
+        }
+      }
+
       // THIS IS THE KEY! Broadcast play event via Socket.io
       // This works in Node.js but failed in Flask!
       if (this.io) {
-        this.io.emit('play_song', {
-          song: topSong.toJSON(),
-          stream_url: streamUrl,
-          volume: volume,
-          auto_next: autoNext
-        });
+        // Broadcast appropriate event based on announcement availability
+        if (announcementData) {
+          const payload = {
+            song: topSong.toJSON(),
+            announcement_text: announcementData.text,
+            stream_url: streamUrl,
+            volume: volume,
+            auto_next: autoNext
+          };
+
+          // Add audio URL if TTS audio was generated
+          if (announcementData.audioPath) {
+            const path = require('path');
+            const filename = path.basename(announcementData.audioPath);
+            payload.announcement_audio_url = `/api/playback/tts/audio/${filename}`;
+            logger.info('[Scheduler] Broadcasting play_announcement with ElevenLabs audio');
+          } else {
+            logger.info('[Scheduler] Broadcasting play_announcement with text (Web Speech fallback)');
+          }
+
+          this.io.emit('play_announcement', payload);
+        } else {
+          this.io.emit('play_song', {
+            song: topSong.toJSON(),
+            stream_url: streamUrl,
+            volume: volume,
+            auto_next: autoNext
+          });
+        }
 
         // Also broadcast queue and recently played updates
         this.io.emit('queue_updated');
         this.io.emit('recently_played_updated');
 
-        logger.info(`[Scheduler] Broadcasted play_song event (auto_next: ${autoNext})`);
+        logger.info(`[Scheduler] Broadcasted play event (auto_next: ${autoNext})`);
       } else {
         logger.error('[Scheduler] Socket.io not initialized!');
       }

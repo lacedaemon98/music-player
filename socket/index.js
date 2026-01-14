@@ -124,6 +124,17 @@ function setupSocket(io) {
       }
     });
 
+    // Handle playback stopped notification (schedule ended, manual next without auto-next)
+    socket.on('playback_stopped', () => {
+      if (socket.isAdmin && isActiveAdmin(socket.id)) {
+        logger.info(`[Socket.io] Playback stopped (schedule ended), broadcasting to all clients`);
+        // Clear currently playing song
+        currentlyPlayingSong = null;
+        // Broadcast to all clients (including public pages)
+        io.emit('song_ended');
+      }
+    });
+
     // Handle request for current song state
     socket.on('get_current_song', () => {
       logger.info(`[Socket.io] Client requesting current song`);
