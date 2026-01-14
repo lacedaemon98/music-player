@@ -1263,6 +1263,12 @@
       if (data.announcement_audio_url) {
         console.log('[Admin] Playing ElevenLabs TTS audio:', data.announcement_audio_url);
 
+        // Preload music stream IMMEDIATELY (parallel with announcement)
+        console.log('[Admin] Preloading music stream:', data.stream_url);
+        audio.src = data.stream_url;
+        audio.load(); // Start loading music in background
+        audio.volume = data.volume / 100;
+
         // Create audio element for announcement
         const announcementAudio = new Audio(data.announcement_audio_url);
         announcementAudio.volume = 1.0;
@@ -1284,7 +1290,7 @@
             </div>
           `;
 
-          audio.src = data.stream_url;
+          // Music already preloaded, just play it
           audio.play().then(() => {
             console.log('[Admin] Playing music:', data.song.title);
             btnPlayPause.disabled = false;

@@ -76,7 +76,7 @@ class YouTubeService {
         {
           encoding: 'utf-8',
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 60000 // 60 second timeout (increased from 30s)
+          timeout: 90000 // 90 second timeout for slow extraction
         }
       );
 

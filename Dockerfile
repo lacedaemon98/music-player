@@ -1,9 +1,13 @@
 # Use Node.js 20 LTS Alpine
 FROM node:20-alpine
 
-# Install ffmpeg and yt-dlp (for YouTube audio extraction)
-RUN apk add --no-cache ffmpeg python3 py3-pip
+# Install ffmpeg, yt-dlp, and deno (for YouTube audio extraction)
+RUN apk add --no-cache ffmpeg python3 py3-pip curl unzip
 RUN pip3 install --break-system-packages yt-dlp
+# Install deno for yt-dlp JavaScript extraction
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
