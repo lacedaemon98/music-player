@@ -2408,8 +2408,9 @@
 
         container.innerHTML = data.files.map(file => {
           const uploadDate = new Date(file.uploadedAt).toLocaleDateString('vi-VN');
+          const escapedFilename = file.filename.replace(/'/g, "\\'");
           return `
-            <div style="background: #f5f5f5; padding: 10px; margin-bottom: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="background: #f5f5f5; padding: 10px; margin-bottom: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
               <div style="flex: 1; min-width: 0;">
                 <div style="font-weight: 600; font-size: 0.9rem; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${file.filename}">
                   <i class="bi bi-file-earmark-music-fill" style="color: #ff9800;"></i>
@@ -2418,6 +2419,14 @@
                 <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">
                   ${file.sizeFormatted} • ${uploadDate}
                 </div>
+              </div>
+              <div style="display: flex; gap: 5px;">
+                <button class="btn btn-sm btn-outline-primary" onclick="renameOfflineMusic('${escapedFilename}')" title="Đổi tên">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteOfflineMusic('${escapedFilename}')" title="Xóa">
+                  <i class="bi bi-trash"></i>
+                </button>
               </div>
             </div>
           `;
@@ -2431,6 +2440,70 @@
             <p class="mb-0">Lỗi tải danh sách</p>
           </div>
         `;
+      }
+    }
+
+    // Rename offline music file
+    async function renameOfflineMusic(oldFilename) {
+      const newName = prompt('Nhập tên mới cho file (không cần phần mở rộng):', oldFilename.replace(/\.[^/.]+$/, ''));
+
+      if (!newName || newName.trim() === '') {
+        return;
+      }
+
+      const ext = oldFilename.match(/\.[^/.]+$/)[0]; // Get extension
+      const newFilename = newName.trim() + ext;
+
+      if (newFilename === oldFilename) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/upload/music/rename', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            oldFilename: oldFilename,
+            newFilename: newFilename
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('✅ Đã đổi tên thành công!');
+          loadOfflineMusicList();
+        } else {
+          alert('❌ Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error renaming music:', error);
+        alert('❌ Không thể đổi tên file');
+      }
+    }
+
+    // Delete offline music file
+    async function deleteOfflineMusic(filename) {
+      if (!confirm(`Bạn có chắc muốn xóa file "${filename}"?\n\nHành động này không thể hoàn tác!`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/upload/music/${encodeURIComponent(filename)}`, {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('✅ Đã xóa file thành công!');
+          loadOfflineMusicList();
+        } else {
+          alert('❌ Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error deleting music:', error);
+        alert('❌ Không thể xóa file');
       }
     }
 

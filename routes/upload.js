@@ -168,6 +168,123 @@ router.get('/music/list', isAdmin, async (req, res) => {
   }
 });
 
+// Rename offline music file (admin only)
+router.put('/music/rename', isAdmin, async (req, res) => {
+  try {
+    const { oldFilename, newFilename } = req.body;
+
+    if (!oldFilename || !newFilename) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu tên file cũ hoặc tên file mới'
+      });
+    }
+
+    // Validate new filename
+    if (newFilename.includes('/') || newFilename.includes('\\') || newFilename.includes('..')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên file không hợp lệ'
+      });
+    }
+
+    const musicDir = path.join(process.cwd(), 'data', 'offline-music');
+    const oldPath = path.join(musicDir, oldFilename);
+    const newPath = path.join(musicDir, newFilename);
+
+    // Check if old file exists
+    try {
+      await fs.access(oldPath);
+    } catch {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy file gốc'
+      });
+    }
+
+    // Check if new filename already exists
+    try {
+      await fs.access(newPath);
+      return res.status(400).json({
+        success: false,
+        message: 'Tên file mới đã tồn tại'
+      });
+    } catch {
+      // Good - new filename doesn't exist
+    }
+
+    // Rename file
+    await fs.rename(oldPath, newPath);
+
+    logger.info(`[Upload] Admin renamed offline music: "${oldFilename}" → "${newFilename}"`);
+
+    res.json({
+      success: true,
+      message: 'Đổi tên file thành công',
+      oldFilename,
+      newFilename
+    });
+  } catch (error) {
+    logger.error('[Upload] Error renaming music:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi đổi tên file'
+    });
+  }
+});
+
+// Delete offline music file (admin only)
+router.delete('/music/:filename', isAdmin, async (req, res) => {
+  try {
+    const { filename } = req.params;
+
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu tên file'
+      });
+    }
+
+    // Security: prevent path traversal
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên file không hợp lệ'
+      });
+    }
+
+    const musicDir = path.join(process.cwd(), 'data', 'offline-music');
+    const filePath = path.join(musicDir, filename);
+
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy file'
+      });
+    }
+
+    // Delete file
+    await fs.unlink(filePath);
+
+    logger.info(`[Upload] Admin deleted offline music: ${filename}`);
+
+    res.json({
+      success: true,
+      message: 'Xóa file thành công',
+      filename
+    });
+  } catch (error) {
+    logger.error('[Upload] Error deleting music:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi xóa file'
+    });
+  }
+});
+
 // Helper function to format bytes
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
