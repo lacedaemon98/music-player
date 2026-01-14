@@ -189,8 +189,21 @@ router.post('/next', isAdmin, async (req, res) => {
       }
     }
 
-    // Use server proxy endpoint instead of direct YouTube URL
-    const streamUrl = `/api/playback/stream/${topSong.id}`;
+    // PRE-EXTRACT YouTube stream URL if there's an announcement (so music is ready when announcement ends)
+    let streamUrl = `/api/playback/stream/${topSong.id}`;
+
+    if (announcementData && topSong.youtube_url) {
+      try {
+        logger.info('[Playback] Pre-extracting YouTube stream URL during announcement generation...');
+        const youtubeService = require('../services/youtube');
+        const directStreamUrl = await youtubeService.getStreamUrl(topSong.youtube_url);
+        streamUrl = directStreamUrl; // Use direct URL instead of proxy
+        logger.info('[Playback] Pre-extraction successful, stream ready for instant playback');
+      } catch (error) {
+        logger.error('[Playback] Pre-extraction failed, will use proxy:', error.message);
+        // Fall back to proxy URL
+      }
+    }
 
     // Broadcast appropriate play event based on announcement availability
     if (announcementData) {
