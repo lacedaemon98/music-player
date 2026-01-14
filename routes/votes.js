@@ -85,8 +85,7 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     const io = req.app.get('io');
     io.emit('queue_updated');
 
-    // Calculate remaining votes
-    const maxVotes = req.user.is_admin ? 999 : 3;
+    // Calculate remaining votes (reuse maxVotes from earlier)
     const remaining = maxVotes - (req.user.daily_votes || 0);
 
     return res.json({
