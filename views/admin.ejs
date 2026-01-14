@@ -797,6 +797,18 @@
               </div>
               <small id="uploadStatus" class="text-muted mt-2 d-block"></small>
             </div>
+
+            <!-- Offline Music List -->
+            <div class="mt-4">
+              <h6 style="font-weight: 600; color: #e65100; margin-bottom: 15px;">
+                <i class="bi bi-folder-fill"></i> Nhạc offline đã có (<span id="offlineMusicCount">0</span>)
+              </h6>
+              <div id="offlineMusicList" style="max-height: 300px; overflow-y: auto;">
+                <div class="text-center text-muted py-3">
+                  <i class="bi bi-hourglass-split"></i> Đang tải...
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2356,6 +2368,9 @@
           }, 3000);
 
           alert(`✅ ${response.message}\n\nFile(s) đã được upload và sẵn sàng sử dụng.`);
+
+          // Reload offline music list
+          loadOfflineMusicList();
         } else {
           throw new Error(response.message);
         }
@@ -2366,6 +2381,56 @@
       } finally {
         btnUpload.disabled = false;
         btnUpload.innerHTML = '<i class="bi bi-cloud-upload"></i> Upload nhạc';
+      }
+    }
+
+    // Load offline music list
+    async function loadOfflineMusicList() {
+      try {
+        const res = await fetch('/api/upload/music/list');
+        const data = await res.json();
+
+        const container = document.getElementById('offlineMusicList');
+        const counter = document.getElementById('offlineMusicCount');
+
+        if (!data.success || data.files.length === 0) {
+          container.innerHTML = `
+            <div class="text-center text-muted py-3">
+              <i class="bi bi-inbox"></i>
+              <p class="mb-0">Chưa có file nhạc offline nào</p>
+            </div>
+          `;
+          counter.textContent = '0';
+          return;
+        }
+
+        counter.textContent = data.files.length;
+
+        container.innerHTML = data.files.map(file => {
+          const uploadDate = new Date(file.uploadedAt).toLocaleDateString('vi-VN');
+          return `
+            <div style="background: #f5f5f5; padding: 10px; margin-bottom: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.9rem; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${file.filename}">
+                  <i class="bi bi-file-earmark-music-fill" style="color: #ff9800;"></i>
+                  ${file.filename}
+                </div>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">
+                  ${file.sizeFormatted} • ${uploadDate}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('[Admin] Error loading offline music list:', error);
+        document.getElementById('offlineMusicList').innerHTML = `
+          <div class="text-center text-danger py-3">
+            <i class="bi bi-exclamation-triangle"></i>
+            <p class="mb-0">Lỗi tải danh sách</p>
+          </div>
+        `;
       }
     }
 
@@ -2790,6 +2855,7 @@
     getUserInfo();
     loadAudioDevices();
     loadMessages();
+    loadOfflineMusicList();
   </script>
 </body>
 </html>

@@ -18,10 +18,13 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
+    // Fix UTF-8 encoding for Vietnamese filenames
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
     // Sanitize filename - remove special characters, keep Vietnamese characters
-    const sanitized = file.originalname
+    const sanitized = originalName
       .replace(/[<>:"/\\|?*]/g, '')
-      .replace(/\s+/g, ' ')
+      .replace(/\s+/g, '-')
       .trim();
 
     // Add timestamp to avoid conflicts
@@ -116,5 +119,62 @@ router.post('/music/batch', isAdmin, upload.array('music', 10), async (req, res)
     });
   }
 });
+
+// List offline music files (admin only)
+router.get('/music/list', isAdmin, async (req, res) => {
+  try {
+    const musicDir = path.join(process.cwd(), 'data', 'offline-music');
+
+    try {
+      await fs.access(musicDir);
+    } catch {
+      return res.json({
+        success: true,
+        files: []
+      });
+    }
+
+    const files = await fs.readdir(musicDir);
+    const musicFiles = [];
+
+    for (const file of files) {
+      const ext = path.extname(file).toLowerCase();
+      if (ext === '.mp3' || ext === '.m4a') {
+        const filePath = path.join(musicDir, file);
+        const stats = await fs.stat(filePath);
+
+        musicFiles.push({
+          filename: file,
+          size: stats.size,
+          sizeFormatted: formatBytes(stats.size),
+          uploadedAt: stats.mtime
+        });
+      }
+    }
+
+    // Sort by upload time descending
+    musicFiles.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+    res.json({
+      success: true,
+      files: musicFiles
+    });
+  } catch (error) {
+    logger.error('[Upload] Error listing offline music:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách nhạc offline'
+    });
+  }
+});
+
+// Helper function to format bytes
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
 
 module.exports = router;
