@@ -1174,7 +1174,73 @@
     </div>
   </div>
 
+  <!-- Dedication Modal -->
+  <div class="modal fade" id="dedicationModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; border: none;">
+          <h5 class="modal-title"><i class="bi bi-chat-heart-fill"></i> Lời nhắn dành tặng</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="padding: 2rem;">
+          <div class="mb-3">
+            <strong id="dedicationSongTitle" style="color: var(--primary); font-size: 1.1rem;"></strong>
+            <div id="dedicationSongArtist" style="color: #888; font-size: 0.9rem; margin-top: 0.25rem;"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label"><i class="bi bi-chat-text"></i> Lời nhắn</label>
+            <textarea class="form-control form-control-lg" id="dedicationInput" rows="3" placeholder="Ví dụ: Đi qua những ngày mưa để thấy yêu thêm những ngày nắng" style="border-radius: 10px;"></textarea>
+            <small class="text-muted">Để trống để xóa lời nhắn</small>
+          </div>
+        </div>
+        <div class="modal-footer" style="border: none; padding: 1rem 2rem 2rem;">
+          <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal" style="border-radius: 10px; padding: 0.75rem 2rem;">Đóng</button>
+          <button type="button" class="btn btn-primary btn-lg" onclick="saveDedication()" style="border-radius: 10px; padding: 0.75rem 2rem;">
+            <i class="bi bi-check-circle"></i> Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let currentDedicationSongId = null;
+
+    function editDedication(songId, currentDedication, title, artist) {
+      currentDedicationSongId = songId;
+      document.getElementById('dedicationSongTitle').textContent = title;
+      document.getElementById('dedicationSongArtist').innerHTML = `<i class="bi bi-mic-fill"></i> ${artist || 'Unknown Artist'}`;
+      document.getElementById('dedicationInput').value = currentDedication;
+
+      const modal = new bootstrap.Modal(document.getElementById('dedicationModal'));
+      modal.show();
+    }
+
+    async function saveDedication() {
+      const dedication = document.getElementById('dedicationInput').value.trim();
+
+      try {
+        const res = await fetch(`/api/admin-tools/set-dedication/${currentDedicationSongId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dedication_message: dedication || null })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          bootstrap.Modal.getInstance(document.getElementById('dedicationModal')).hide();
+          loadQueue(); // Reload queue to show updated dedication
+          alert(data.message);
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error saving dedication:', error);
+        alert('Lỗi lưu lời nhắn');
+      }
+    }
+
     // Update schedule volume slider visual feedback
     function updateScheduleVolumeSlider(slider) {
       const value = slider.value;
@@ -1815,11 +1881,20 @@
                 <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
               </div>
               ${s.dedication_message ? `
-                <div class="queue-item-dedication" title="${s.dedication_message}">
-                  <i class="bi bi-chat-heart-fill" style="color: #ff6b6b;"></i>
-                  <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message.length > 50 ? s.dedication_message.substring(0, 50) + '...' : s.dedication_message}</span>
+                <div class="queue-item-dedication" title="${s.dedication_message}" style="display: flex; align-items: center; gap: 0.5rem;">
+                  <div style="display: flex; align-items: center; gap: 0.25rem; flex: 1;">
+                    <i class="bi bi-chat-heart-fill" style="color: #ff6b6b;"></i>
+                    <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message.length > 50 ? s.dedication_message.substring(0, 50) + '...' : s.dedication_message}</span>
+                  </div>
+                  <button class="btn btn-sm btn-link p-0" onclick="editDedication(${s.id}, '${s.dedication_message.replace(/'/g, "\\'")}', '${s.title.replace(/'/g, "\\'")}', '${(s.artist || '').replace(/'/g, "\\'")}' )" title="Sửa lời nhắn" style="color: #666; text-decoration: none;">
+                    <i class="bi bi-pencil-fill"></i>
+                  </button>
                 </div>
-              ` : ''}
+              ` : `
+                <button class="btn btn-sm btn-outline-secondary" onclick="editDedication(${s.id}, '', '${s.title.replace(/'/g, "\\'")}', '${(s.artist || '').replace(/'/g, "\\'")}' )" style="font-size: 0.8rem; padding: 0.25rem 0.75rem; border-radius: 20px;">
+                  <i class="bi bi-plus-circle"></i> Thêm lời nhắn
+                </button>
+              `}
             </div>
           </div>
           <div class="queue-item-actions">

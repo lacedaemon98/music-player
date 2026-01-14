@@ -81,6 +81,7 @@ app.get('/health', (req, res) => {
 // API Routes
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const adminToolsRoutes = require('./routes/admin-tools');
 const songRoutes = require('./routes/songs');
 const voteRoutes = require('./routes/votes');
 const playbackRoutes = require('./routes/playback');
@@ -90,6 +91,7 @@ const uploadRoutes = require('./routes/upload');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin-tools', adminToolsRoutes);
 app.use('/api/songs', songRoutes);
 app.use('/api/votes', voteRoutes);
 app.use('/api/playback', playbackRoutes);
