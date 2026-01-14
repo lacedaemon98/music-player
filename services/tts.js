@@ -59,19 +59,20 @@ async function textToSpeechGenerate(text, songId) {
 
     logger.info('[TTS] Generating new TTS audio for song:', songId);
 
-    // List available voices to find Vietnamese voice
-    // Vietnamese voice IDs in ElevenLabs:
-    // - "onwK4e9ZLuTAKqWW03F9" (Adam - Multilingual)
-    // - "pNInz6obpgDQGcFmaJgB" (Adam - Vietnamese optimized)
-    // You can also use any multilingual voice
+    // Using Huyen voice - Calm, Friendly and Clear Vietnamese voice (user-requested)
+    const voiceId = 'foH7s9fX31wFFH2yqrFa';
 
-    const voiceId = 'onwK4e9ZLuTAKqWW03F9'; // Adam multilingual voice (works well with Vietnamese)
-
-    // Generate audio using ElevenLabs streaming API
+    // Generate audio using ElevenLabs streaming API with voice settings
     const audioStream = await client.generate({
       voice: voiceId,
       text: text,
-      model_id: 'eleven_multilingual_v2' // Best for Vietnamese
+      model_id: 'eleven_turbo_v2_5', // Turbo v2.5 for faster Vietnamese generation
+      voice_settings: {
+        stability: 0.5,        // More variation for natural speech
+        similarity_boost: 0.75, // Keep voice character
+        style: 0.0,            // No exaggeration
+        use_speaker_boost: true // Better clarity
+      }
     });
 
     // Write stream to file
