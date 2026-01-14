@@ -162,6 +162,28 @@
       flex-shrink: 0;
     }
 
+    .queue-item-dedication {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      background: #fff5f5;
+      border-radius: 6px;
+      margin-top: 0.25rem;
+      max-width: 100%;
+    }
+
+    .queue-item-dedication i {
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .queue-item-dedication span {
+      flex: 1;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
     .vote-badge {
       background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
@@ -648,9 +670,9 @@
                 <span>${s.addedBy ? s.addedBy.display_name : 'Unknown'}</span>
               </div>
               ${s.dedication_message ? `
-                <div class="queue-item-dedication" title="${s.dedication_message}">
+                <div class="queue-item-dedication">
                   <i class="bi bi-chat-heart-fill" style="color: #ff6b6b;"></i>
-                  <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message.length > 50 ? s.dedication_message.substring(0, 50) + '...' : s.dedication_message}</span>
+                  <span style="font-style: italic; color: #666; font-size: 0.85rem;">${s.dedication_message}</span>
                 </div>
               ` : ''}
             </div>
