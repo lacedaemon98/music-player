@@ -1,25 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const { Song, Vote } = require('../models');
+const { Song, Vote, sequelize } = require('../models');
 const { ipUserMiddleware } = require('../middleware/ipUser');
 const logger = require('../utils/logger');
 
 // Add vote to song (allow multiple votes, no unvote)
 router.post('/:song_id', ipUserMiddleware, async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const songId = parseInt(req.params.song_id);
     const userId = req.user.id;
 
-    // Reload user to get latest vote data
-    await req.user.reload();
+    // Reload user to get latest vote data with lock to prevent race conditions
+    await req.user.reload({
+      transaction,
+      lock: transaction.LOCK.UPDATE
+    });
 
     // Check and reset votes if new day
     await req.user.checkAndResetVotes();
 
     // Check if song exists and is not played
-    const song = await Song.findByPk(songId);
+    const song = await Song.findByPk(songId, { transaction });
 
     if (!song) {
+      await transaction.rollback();
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy bài nào như thế bạn êi :\u0027('
@@ -27,6 +33,7 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     }
 
     if (song.played) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Bài đã phát rồi vote làm gì bạn'
@@ -37,6 +44,7 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     const canVote = await req.user.canVote();
 
     if (!canVote) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Hết lượt vote rồi bạn ơi. Mai quay lại nha',
@@ -48,13 +56,19 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
     await Vote.create({
       user_id: userId,
       song_id: songId
-    });
+    }, { transaction });
 
     // Only increment the counter AFTER successful vote creation
     await req.user.incrementVote();
 
     // Get updated vote count
-    const voteCount = await Vote.count({ where: { song_id: songId } });
+    const voteCount = await Vote.count({
+      where: { song_id: songId },
+      transaction
+    });
+
+    // Commit transaction before broadcasting
+    await transaction.commit();
 
     logger.info(`[Votes] ${req.user.display_name} voted for song ${song.title} (total: ${voteCount})`);
 
@@ -69,6 +83,7 @@ router.post('/:song_id', ipUserMiddleware, async (req, res) => {
       remaining_votes: req.user.getRemainingVotes()
     });
   } catch (error) {
+    await transaction.rollback();
     logger.error('[Votes] Error adding vote:', error);
     res.status(500).json({
       success: false,

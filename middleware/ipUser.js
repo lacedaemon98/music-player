@@ -25,16 +25,18 @@ function getClientIp(req) {
 
 /**
  * Get unique browser fingerprint from request
- * Combines multiple factors for better uniqueness
+ * Prioritizes hardware-based fingerprint from client, falls back to IP+UA
  */
 function getBrowserFingerprint(req) {
-  // Check for custom client fingerprint header (sent from browser)
+  // PRIORITY 1: Hardware-based client fingerprint (Canvas, WebGL, Audio, etc.)
   const clientFingerprint = req.headers['x-client-fingerprint'];
-  if (clientFingerprint) {
+  if (clientFingerprint && clientFingerprint.length >= 16) {
+    // Valid hardware fingerprint from client
     return clientFingerprint;
   }
 
-  // Fallback: Generate fingerprint from IP + User Agent
+  // FALLBACK: Generate server-side fingerprint from IP + User Agent
+  // This is weaker but ensures backward compatibility
   const ip = getClientIp(req);
   const userAgent = req.headers['user-agent'] || 'unknown';
   const crypto = require('crypto');
@@ -45,6 +47,7 @@ function getBrowserFingerprint(req) {
     .digest('hex')
     .substring(0, 16);
 
+  logger.warn(`[IP User] Using fallback fingerprint for IP: ${ip} (no client fingerprint)`);
   return hash;
 }
 

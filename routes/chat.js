@@ -68,6 +68,25 @@ router.post('/messages', ipUserMiddleware, async (req, res) => {
 
     logger.info(`[Chat] User verified: ${req.user.username} (ID: ${req.user.id})`);
 
+    // Rate limiting: 5 messages per minute
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const recentMessageCount = await Message.count({
+      where: {
+        user_id: req.user.id,
+        created_at: {
+          [Op.gte]: oneMinuteAgo
+        }
+      }
+    });
+
+    if (recentMessageCount >= 5) {
+      logger.warn(`[Chat] Rate limit exceeded for user ${req.user.username} (${recentMessageCount} messages in last minute)`);
+      return res.status(429).json({
+        success: false,
+        message: 'Spam quá rồi bạn êi! Tối đa 5 tin nhắn/phút thôi 😅'
+      });
+    }
+
     const { message } = req.body;
 
     if (!message || message.trim().length === 0) {
