@@ -22,13 +22,22 @@ jobs:
                         echo "📥 Fetching latest code..." && \
                         git status && \
                         git reset --hard && \
+                        BEFORE=$(git rev-parse HEAD) && \
                         git pull origin master && \
-                        echo "🐳 Rebuilding and restarting Docker containers..." && \
-                        docker compose down && \
-                        docker compose build --no-cache && \
-                        docker compose up -d && \
-                        echo "🧹 Cleaning up unused Docker resources..." && \
-                        docker system prune -f && \
+                        AFTER=$(git rev-parse HEAD) && \
+
+                        # Check if package.json or Dockerfile changed (need rebuild)
+                        if git diff --name-only $BEFORE $AFTER | grep -qE '^(package\.json|Dockerfile)$'; then
+                          echo "🔨 Dependencies or Dockerfile changed, rebuilding..." && \
+                          docker compose down && \
+                          docker compose build --no-cache && \
+                          docker compose up -d && \
+                          docker system prune -f
+                        else
+                          echo "♻️  Only code changes, restarting container..." && \
+                          docker compose restart
+                        fi && \
+
                         echo "✅ Deployment completed!" && \
                         echo "📊 Container status:" && \
                         docker compose ps && \
