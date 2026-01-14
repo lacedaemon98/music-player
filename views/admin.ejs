@@ -1273,6 +1273,16 @@
         const announcementAudio = new Audio(data.announcement_audio_url);
         announcementAudio.volume = 1.0;
 
+        // Set output device to match main audio player
+        const selectedDevice = document.getElementById('audioOutput').value;
+        if (announcementAudio.setSinkId && selectedDevice) {
+          announcementAudio.setSinkId(selectedDevice).then(() => {
+            console.log('[Admin] Announcement audio using device:', selectedDevice);
+          }).catch(err => {
+            console.warn('[Admin] Failed to set announcement output device:', err);
+          });
+        }
+
         let musicStarted = false;
 
         function playMusic() {
