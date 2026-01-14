@@ -178,12 +178,12 @@ router.post('/next', isAdmin, async (req, res) => {
 
     // Generate DJ announcement if dedication message exists
     const djService = require('../services/dj');
-    let announcementText = null;
+    let announcementData = null;
 
     if (topSong.dedication_message) {
       try {
         logger.info('[Playback] Generating DJ announcement for:', topSong.title);
-        announcementText = await djService.generateAnnouncementText(topSong);
+        announcementData = await djService.generateAnnouncement(topSong);
       } catch (error) {
         logger.error('[Playback] Announcement generation failed, continuing without it:', error);
       }
@@ -193,14 +193,25 @@ router.post('/next', isAdmin, async (req, res) => {
     const streamUrl = `/api/playback/stream/${topSong.id}`;
 
     // Broadcast appropriate play event based on announcement availability
-    if (announcementText) {
-      logger.info('[Playback] Broadcasting play_announcement event with text');
-      io.emit('play_announcement', {
+    if (announcementData) {
+      const payload = {
         song: topSong.toJSON(),
-        announcement_text: announcementText,
+        announcement_text: announcementData.text,
         stream_url: streamUrl,
         volume: playbackState.volume
-      });
+      };
+
+      // Add audio URL if TTS audio was generated
+      if (announcementData.audioPath) {
+        const path = require('path');
+        const filename = path.basename(announcementData.audioPath);
+        payload.announcement_audio_url = `/api/tts/audio/${filename}`;
+        logger.info('[Playback] Broadcasting play_announcement with ElevenLabs audio');
+      } else {
+        logger.info('[Playback] Broadcasting play_announcement with text (Web Speech fallback)');
+      }
+
+      io.emit('play_announcement', payload);
     } else {
       logger.info('[Playback] Broadcasting play_song event (no announcement)');
       io.emit('play_song', {
@@ -477,6 +488,41 @@ router.get('/stream-announcement/:song_id', async (req, res) => {
   } catch (error) {
     logger.error('[Playback] Error streaming announcement:', error);
     res.status(500).send('Failed to stream announcement');
+  }
+});
+
+// Serve TTS audio files from cache
+router.get('/tts/audio/:filename', (req, res) => {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+
+    const filename = req.params.filename;
+
+    // Security: Only allow mp3 files and prevent directory traversal
+    if (!filename.endsWith('.mp3') || filename.includes('..') || filename.includes('/')) {
+      return res.status(400).send('Invalid filename');
+    }
+
+    const TTS_CACHE_DIR = path.join(__dirname, '../data/tts-cache');
+    const filePath = path.join(TTS_CACHE_DIR, filename);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      logger.warn('[Playback] TTS audio file not found:', filePath);
+      return res.status(404).send('Audio file not found');
+    }
+
+    // Set headers for audio streaming
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // Stream the file
+    fs.createReadStream(filePath).pipe(res);
+
+  } catch (error) {
+    logger.error('[Playback] Error serving TTS audio:', error);
+    res.status(500).send('Failed to serve audio file');
   }
 });
 

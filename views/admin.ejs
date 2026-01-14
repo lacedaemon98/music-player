@@ -1259,9 +1259,62 @@
         </div>
       `;
 
-      // Use Web Speech API to read announcement text
-      if ('speechSynthesis' in window && data.announcement_text) {
-        console.log('[Admin] Speaking announcement:', data.announcement_text);
+      // Check if we have ElevenLabs audio URL (preferred method)
+      if (data.announcement_audio_url) {
+        console.log('[Admin] Playing ElevenLabs TTS audio:', data.announcement_audio_url);
+
+        // Create audio element for announcement
+        const announcementAudio = new Audio(data.announcement_audio_url);
+        announcementAudio.volume = 1.0;
+
+        let musicStarted = false;
+
+        function playMusic() {
+          if (musicStarted) return;
+          musicStarted = true;
+
+          // Update now playing UI
+          document.getElementById('nowPlaying').innerHTML = `
+            <div>
+              <i class="bi bi-disc-fill spinning" style="font-size: 3rem;"></i>
+              <div class="mt-3">
+                <strong style="font-size: 1.1rem;">${data.song.title}</strong><br>
+                <span style="opacity: 0.8;">${data.song.artist || 'Unknown Artist'}</span>
+              </div>
+            </div>
+          `;
+
+          audio.src = data.stream_url;
+          audio.play().then(() => {
+            console.log('[Admin] Playing music:', data.song.title);
+            btnPlayPause.disabled = false;
+            btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+          }).catch(err => {
+            console.error('[Admin] Error playing music:', err);
+            btnPlayPause.disabled = false;
+          });
+        }
+
+        announcementAudio.onended = () => {
+          console.log('[Admin] ElevenLabs announcement ended, starting music');
+          playMusic();
+        };
+
+        announcementAudio.onerror = (err) => {
+          console.error('[Admin] Error playing announcement audio:', err);
+          console.warn('[Admin] Falling back to immediate music play');
+          playMusic();
+        };
+
+        // Play the announcement audio
+        announcementAudio.play().catch(err => {
+          console.error('[Admin] Failed to play announcement:', err);
+          playMusic();
+        });
+
+      } else if ('speechSynthesis' in window && data.announcement_text) {
+        // Fallback to Web Speech API if no ElevenLabs audio
+        console.log('[Admin] No ElevenLabs audio, using Web Speech API:', data.announcement_text);
 
         const utterance = new SpeechSynthesisUtterance(data.announcement_text);
         utterance.lang = 'vi-VN';

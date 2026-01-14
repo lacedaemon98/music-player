@@ -24,6 +24,7 @@
     "@distube/ytdl-core": "^4.14.4",
     "@google-cloud/text-to-speech": "^5.0.0",
     "@google/generative-ai": "^0.24.1",
+    "elevenlabs": "^0.8.1",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "connect-session-sequelize": "^7.1.7",

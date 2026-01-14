@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { ElevenLabsClient } = require('elevenlabs');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -12,6 +12,22 @@ if (!fs.existsSync(TTS_CACHE_DIR)) {
   logger.info('[TTS] Created cache directory:', TTS_CACHE_DIR);
 }
 
+let client;
+
+// Initialize ElevenLabs client
+try {
+  if (process.env.ELEVENLABS_API_KEY) {
+    client = new ElevenLabsClient({
+      apiKey: process.env.ELEVENLABS_API_KEY
+    });
+    logger.info('[TTS] ElevenLabs client initialized successfully');
+  } else {
+    logger.warn('[TTS] No ELEVENLABS_API_KEY found, TTS will be disabled');
+  }
+} catch (error) {
+  logger.error('[TTS] Failed to initialize ElevenLabs client:', error);
+}
+
 /**
  * Generate cache key from text
  */
@@ -20,17 +36,15 @@ function generateCacheKey(text) {
 }
 
 /**
- * Convert text to speech using Google Cloud TTS REST API with API key
+ * Convert text to speech using ElevenLabs API
  * @param {string} text - Text to convert
  * @param {number} songId - Song ID for cache filename
  * @returns {Promise<string|null>} - Path to generated audio file, or null if failed
  */
 async function textToSpeechGenerate(text, songId) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-
-    if (!apiKey) {
-      logger.warn('[TTS] No API key found, TTS will be disabled');
+    if (!client) {
+      logger.warn('[TTS] ElevenLabs client not initialized');
       return null;
     }
 
@@ -45,37 +59,45 @@ async function textToSpeechGenerate(text, songId) {
 
     logger.info('[TTS] Generating new TTS audio for song:', songId);
 
-    // Call Google Cloud Text-to-Speech REST API
-    const response = await axios.post(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
-      {
-        input: { text },
-        voice: {
-          languageCode: 'vi-VN',
-          name: 'vi-VN-Wavenet-A', // Female Vietnamese voice
-          ssmlGender: 'FEMALE'
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          speakingRate: 1.0,
-          pitch: 0.0
-        }
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // List available voices to find Vietnamese voice
+    // Vietnamese voice IDs in ElevenLabs:
+    // - "onwK4e9ZLuTAKqWW03F9" (Adam - Multilingual)
+    // - "pNInz6obpgDQGcFmaJgB" (Adam - Vietnamese optimized)
+    // You can also use any multilingual voice
 
-    // Decode base64 audio content
-    const audioContent = Buffer.from(response.data.audioContent, 'base64');
-    fs.writeFileSync(cachedFilePath, audioContent, 'binary');
-    logger.info('[TTS] Generated and cached TTS audio:', cachedFilePath);
+    const voiceId = 'onwK4e9ZLuTAKqWW03F9'; // Adam multilingual voice (works well with Vietnamese)
 
-    return cachedFilePath;
+    // Generate audio using ElevenLabs streaming API
+    const audioStream = await client.generate({
+      voice: voiceId,
+      text: text,
+      model_id: 'eleven_multilingual_v2' // Best for Vietnamese
+    });
+
+    // Write stream to file
+    const writeStream = fs.createWriteStream(cachedFilePath);
+
+    return new Promise((resolve, reject) => {
+      audioStream.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        logger.info('[TTS] Generated and cached TTS audio:', cachedFilePath);
+        resolve(cachedFilePath);
+      });
+
+      writeStream.on('error', (error) => {
+        logger.error('[TTS] Error writing audio file:', error);
+        reject(error);
+      });
+
+      audioStream.on('error', (error) => {
+        logger.error('[TTS] Error streaming audio:', error);
+        reject(error);
+      });
+    });
+
   } catch (error) {
-    logger.error('[TTS] Error generating speech:', error.response?.data || error.message);
+    logger.error('[TTS] Error generating speech:', error.message);
     return null;
   }
 }
