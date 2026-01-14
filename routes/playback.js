@@ -205,7 +205,7 @@ router.post('/next', isAdmin, async (req, res) => {
       if (announcementData.audioPath) {
         const path = require('path');
         const filename = path.basename(announcementData.audioPath);
-        payload.announcement_audio_url = `/api/tts/audio/${filename}`;
+        payload.announcement_audio_url = `/api/playback/tts/audio/${filename}`;
         logger.info('[Playback] Broadcasting play_announcement with ElevenLabs audio');
       } else {
         logger.info('[Playback] Broadcasting play_announcement with text (Web Speech fallback)');
