@@ -501,7 +501,7 @@
     }
 
     .chat-messages {
-      height: 400px;
+      height: 550px;
       overflow-y: auto;
       padding: 1rem;
       display: flex;
@@ -668,6 +668,19 @@
 
       <!-- Left Column: Queue, Recently Played, Schedules -->
       <div class="col-lg-8">
+
+        <!-- Next Song Section (Schedule Preview) -->
+        <div id="nextSongSection" style="display: none;" class="mb-4">
+          <div class="card">
+            <div class="card-header-custom">
+              <i class="bi bi-broadcast-pin"></i>
+              Lịch phát tiếp theo
+            </div>
+            <div class="card-body p-4" id="nextSongContent">
+              <!-- Content will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
 
         <!-- Queue Section -->
         <div class="card mb-4">
@@ -1279,6 +1292,9 @@
     // Track current announcement audio (for output device switching)
     let currentAnnouncementAudio = null;
 
+    // Position update interval (for resume on reconnect)
+    let positionUpdateInterval = null;
+
     // Autoplay handling
     let pendingPlayAction = null;
     let audioUnlocked = false;
@@ -1370,6 +1386,9 @@
       console.log('[Admin] This tab is now active:', data);
       isActiveTab = true;
       document.getElementById('inactiveOverlay').style.display = 'none';
+
+      // Request playback state for resume (after refresh)
+      socket.emit('get_playback_state');
     });
 
     socket.on('admin_rejected', (data) => {
@@ -1438,6 +1457,288 @@
     socket.on('queue_updated', () => loadQueue());
     socket.on('recently_played_updated', () => loadRecentlyPlayed());
     socket.on('schedule_updated', () => loadSchedules());
+
+    // Handle playback state response (for resume after refresh)
+    socket.on('playback_state', (state) => {
+      console.log('[Admin] Received playback state for resume:', state);
+
+      if (state.stage === 'idle' || !state.song) {
+        console.log('[Admin] No active playback to resume');
+        return;
+      }
+
+      // Resume based on stage
+      if (state.stage === 'announcement' && state.announcement_text) {
+        console.log(`[Admin] Resuming announcement at ${state.position}s`);
+        resumeAnnouncement(state);
+      } else if (state.stage === 'music') {
+        console.log(`[Admin] Resuming music at ${state.position}s`);
+        resumeMusic(state);
+      }
+    });
+
+    // Resume announcement playback
+    function resumeAnnouncement(state) {
+      const audio = document.getElementById('audioPlayer');
+      const btnPlayPause = document.getElementById('btnPlayPause');
+
+      // Show DJ announcement indicator
+      document.getElementById('nowPlaying').innerHTML = `
+        <div>
+          <i class="bi bi-broadcast spinning" style="font-size: 3rem; color: #ff6b6b;"></i>
+          <div class="mt-3">
+            <strong style="font-size: 0.9rem;">🎙️ DJ đang giới thiệu... (resumed)</strong><br>
+            <strong style="font-size: 1.1rem;">${state.song.title}</strong><br>
+            <span style="opacity: 0.8;">${state.song.artist || 'Unknown Artist'}</span>
+          </div>
+        </div>
+      `;
+
+      // Note: Cannot resume TTS mid-way (seek not supported)
+      // Replay announcement from the beginning
+      if (state.announcement_url) {
+        console.log('[Admin] Replaying announcement from beginning');
+
+        // Preload music
+        audio.src = state.stream_url;
+        audio.volume = state.volume / 100;
+        audio.load();
+
+        // Play announcement audio
+        const announcementAudio = new Audio(state.announcement_url);
+        announcementAudio.volume = state.volume / 100;
+        currentAnnouncementAudio = announcementAudio;
+
+        let musicStarted = false;
+
+        function playMusic() {
+          if (musicStarted) return;
+          musicStarted = true;
+
+          // Stop tracking announcement
+          stopPositionUpdates();
+
+          // Update UI to show music
+          document.getElementById('nowPlaying').innerHTML = `
+            <div>
+              <i class="bi bi-disc-fill spinning" style="font-size: 3rem;"></i>
+              <div class="mt-3">
+                <strong style="font-size: 1.1rem;">${state.song.title}</strong><br>
+                <span style="opacity: 0.8;">${state.song.artist || 'Unknown Artist'}</span>
+              </div>
+            </div>
+          `;
+
+          audio.play().then(() => {
+            console.log('[Admin] Playing music after resumed announcement');
+            btnPlayPause.disabled = false;
+            btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+
+            // Start tracking music
+            startPositionUpdates('music', state.song, state.announcement_text, null, state.stream_url, state.auto_next, state.volume);
+
+            // Setup onended for auto-next
+            audio.onended = () => {
+              console.log('[Admin] Song ended (after resumed announcement)');
+              stopPositionUpdates();
+              btnPlayPause.disabled = true;
+              socket.emit('song_ended_notify');
+
+              if (state.auto_next) {
+                playNext();
+              } else {
+                socket.emit('playback_stopped');
+                audio.src = '';
+                btnPlayPause.disabled = false;
+                btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+                document.getElementById('nowPlaying').innerHTML = `
+                  <div>
+                    <i class="bi bi-music-note-beamed" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <div class="mt-3">
+                      <strong style="opacity: 0.5;">Không có bài nào đang phát</strong>
+                    </div>
+                  </div>
+                `;
+              }
+            };
+          }).catch(err => {
+            console.error('[Admin] Error playing music after resumed announcement:', err);
+            if (err.name === 'NotAllowedError') {
+              handleAutoplayError(() => playMusic());
+            }
+          });
+        }
+
+        announcementAudio.onended = () => {
+          console.log('[Admin] Resumed announcement ended, starting music');
+          currentAnnouncementAudio = null;
+          playMusic();
+        };
+
+        announcementAudio.onerror = (err) => {
+          console.error('[Admin] Error playing resumed announcement:', err);
+          stopPositionUpdates();
+          currentAnnouncementAudio = null;
+          playMusic();
+        };
+
+        announcementAudio.play().then(() => {
+          console.log('[Admin] Playing resumed announcement');
+          // Start tracking announcement
+          startPositionUpdates('announcement', state.song, state.announcement_text, state.announcement_url, state.stream_url, state.auto_next, state.volume);
+        }).catch(err => {
+          console.error('[Admin] Failed to play resumed announcement:', err);
+          currentAnnouncementAudio = null;
+
+          if (err.name === 'NotAllowedError') {
+            handleAutoplayError(() => {
+              announcementAudio.play().then(() => {
+                startPositionUpdates('announcement', state.song, state.announcement_text, state.announcement_url, state.stream_url, state.auto_next, state.volume);
+              }).catch(() => playMusic());
+            });
+          } else {
+            playMusic();
+          }
+        });
+
+      } else {
+        // No announcement URL, skip to music
+        console.log('[Admin] No announcement URL, skipping to music');
+        state.stage = 'music';
+        state.position = 0;
+        resumeMusic(state);
+      }
+    }
+
+    // Start position update interval
+    function startPositionUpdates(stage, song, announcement_text, announcement_url, stream_url, auto_next, volume, audioElement = null) {
+      // Clear any existing interval
+      stopPositionUpdates();
+
+      // Use provided audio element or default to main player
+      const audio = audioElement || document.getElementById('audioPlayer');
+
+      positionUpdateInterval = setInterval(() => {
+        // For announcement stage, check currentAnnouncementAudio
+        const isPlaying = stage === 'announcement'
+          ? (currentAnnouncementAudio && !currentAnnouncementAudio.paused)
+          : !audio.paused;
+
+        if (isPlaying && isActiveTab) {
+          const currentPos = stage === 'announcement'
+            ? (currentAnnouncementAudio ? Math.floor(currentAnnouncementAudio.currentTime) : 0)
+            : Math.floor(audio.currentTime);
+
+          socket.emit('playback_state_update', {
+            stage: stage,
+            position: currentPos,
+            song: song,
+            announcement_text: announcement_text,
+            announcement_url: announcement_url,
+            stream_url: stream_url,
+            auto_next: auto_next,
+            volume: volume
+          });
+        }
+      }, 2000); // Update every 2 seconds
+    }
+
+    // Stop position update interval
+    function stopPositionUpdates() {
+      if (positionUpdateInterval) {
+        clearInterval(positionUpdateInterval);
+        positionUpdateInterval = null;
+      }
+    }
+
+    // Resume music playback
+    function resumeMusic(state) {
+      const audio = document.getElementById('audioPlayer');
+      const btnPlayPause = document.getElementById('btnPlayPause');
+
+      audio.volume = state.volume / 100;
+
+      // Update volume slider UI
+      const volumeSlider = document.getElementById('volumeSlider');
+      const volumeValue = document.getElementById('volumeValue');
+      volumeSlider.value = state.volume;
+      volumeValue.textContent = state.volume;
+
+      // Update now playing UI
+      document.getElementById('nowPlaying').innerHTML = `
+        <div>
+          <i class="bi bi-disc-fill spinning" style="font-size: 3rem;"></i>
+          <div class="mt-3">
+            <strong style="font-size: 1.1rem;">${state.song.title}</strong><br>
+            <span style="opacity: 0.8;">${state.song.artist || 'Unknown Artist'}</span>
+          </div>
+        </div>
+      `;
+
+      audio.src = state.stream_url;
+      audio.currentTime = state.position; // Seek to last position
+      audio.play().then(() => {
+        console.log(`[Admin] Resumed music from ${state.position}s:`, state.song.title);
+        btnPlayPause.disabled = false;
+        btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+
+        // Start position updates
+        startPositionUpdates('music', state.song, null, null, state.stream_url, state.auto_next, state.volume);
+
+        // Emit song_started to sync with public
+        if (isActiveTab) {
+          socket.emit('song_started', {
+            song: state.song,
+            stream_url: state.stream_url,
+            volume: state.volume
+          });
+        }
+
+        // Setup onended handler
+        audio.onended = () => {
+          console.log('[Admin] Song ended (after resume)');
+          btnPlayPause.disabled = true;
+          socket.emit('song_ended_notify');
+
+          // Stop position updates
+          stopPositionUpdates();
+
+          // Clear next song locked if applicable
+          if (nextSongLocked) {
+            console.log('[Admin] Clearing next song locked display');
+            nextSongLocked = null;
+            loadQueue();
+          }
+
+          // Auto-play next if enabled
+          if (state.auto_next) {
+            console.log('[Admin] Auto-playing next song...');
+            playNext();
+          } else {
+            console.log('[Admin] Auto-next disabled, stopping playback');
+            socket.emit('playback_stopped');
+            audio.src = '';
+            btnPlayPause.disabled = false;
+            btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+            document.getElementById('nowPlaying').innerHTML = `
+              <div>
+                <i class="bi bi-music-note-beamed" style="font-size: 3rem; opacity: 0.3;"></i>
+                <div class="mt-3">
+                  <strong style="opacity: 0.5;">Không có bài nào đang phát</strong>
+                </div>
+              </div>
+            `;
+          }
+        };
+      }).catch(err => {
+        console.error('[Admin] Error resuming music:', err);
+        if (err.name === 'NotAllowedError') {
+          handleAutoplayError(() => audio.play());
+        } else {
+          alert('Không thể resume: ' + err.message);
+        }
+      });
+    }
 
     // Handle play announcement event (Web Speech API → Music sequentially)
     socket.on('play_announcement', (data) => {
@@ -1528,6 +1829,9 @@
             console.log('[Admin] Playing music:', data.song.title);
             btnPlayPause.disabled = false;
             btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
+
+            // Start position updates
+            startPositionUpdates('music', data.song, data.announcement_text, null, data.stream_url, data.auto_next, data.volume);
           }).catch(err => {
             console.error('[Admin] Error playing music:', err);
             if (err.name === 'NotAllowedError') {
@@ -1541,6 +1845,10 @@
 
         announcementAudio.onended = () => {
           console.log('[Admin] ElevenLabs announcement ended, starting music');
+
+          // Stop announcement position tracking
+          stopPositionUpdates();
+
           currentAnnouncementAudio = null; // Clear reference
           playMusic();
         };
@@ -1548,19 +1856,31 @@
         announcementAudio.onerror = (err) => {
           console.error('[Admin] Error playing announcement audio:', err);
           console.warn('[Admin] Falling back to immediate music play');
+
+          // Stop announcement position tracking
+          stopPositionUpdates();
+
           currentAnnouncementAudio = null; // Clear reference
           playMusic();
         };
 
         // Play the announcement audio
-        announcementAudio.play().catch(err => {
+        announcementAudio.play().then(() => {
+          console.log('[Admin] Playing ElevenLabs announcement');
+
+          // Start tracking announcement playback for resume
+          startPositionUpdates('announcement', data.song, data.announcement_text, data.announcement_url, data.stream_url, data.auto_next, data.volume);
+
+        }).catch(err => {
           console.error('[Admin] Failed to play announcement:', err);
           currentAnnouncementAudio = null; // Clear reference on play failure
 
           if (err.name === 'NotAllowedError') {
             // Autoplay blocked - show overlay and retry after user click
             handleAutoplayError(() => {
-              announcementAudio.play().catch(() => playMusic());
+              announcementAudio.play().then(() => {
+                startPositionUpdates('announcement', data.song, data.announcement_text, data.announcement_url, data.stream_url, data.auto_next, data.volume);
+              }).catch(() => playMusic());
             });
           } else {
             playMusic();
@@ -1687,6 +2007,9 @@
           btnPlayPause.disabled = false;
           btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
 
+          // Start position updates
+          startPositionUpdates('music', data.song, data.announcement_text, null, data.stream_url, data.auto_next, data.volume);
+
           if (isActiveTab) {
             socket.emit('song_started', {
               song: data.song,
@@ -1699,6 +2022,16 @@
             console.log('[Admin] Song ended');
             btnPlayPause.disabled = true;
             socket.emit('song_ended_notify');
+
+            // Stop position updates
+            stopPositionUpdates();
+
+            // Clear next song locked display (song has finished playing)
+            if (nextSongLocked) {
+              console.log('[Admin] Clearing next song locked display');
+              nextSongLocked = null;
+              loadQueue(); // Reload queue to remove locked song display
+            }
 
             // Only auto-play next if server allows it
             if (data.auto_next !== false) {
@@ -1787,6 +2120,9 @@
           btnPlayPause.disabled = false;
           btnPlayPause.innerHTML = '<i class="bi bi-pause-fill"></i>';
 
+          // Start position updates for resume functionality
+          startPositionUpdates('music', data.song, null, null, data.stream_url, data.auto_next, data.volume);
+
           // Emit song_started to server (so public page can get current song)
           if (isActiveTab) {
             socket.emit('song_started', {
@@ -1814,10 +2150,21 @@
         // Auto-play next song when current finishes (if enabled)
         audio.onended = () => {
           console.log('[Admin] Song ended');
+
+          // Stop position tracking
+          stopPositionUpdates();
+
           btnPlayPause.disabled = true;
 
           // Notify all clients that song has ended
           socket.emit('song_ended_notify');
+
+          // Clear next song locked display (song has finished playing)
+          if (nextSongLocked) {
+            console.log('[Admin] Clearing next song locked display');
+            nextSongLocked = null;
+            loadQueue(); // Reload queue to remove locked song display
+          }
 
           // Only auto-play next if server allows it
           if (data.auto_next !== false) {
@@ -1850,11 +2197,137 @@
       }
     });
 
+    // Handle next song locked notification (5 minutes before schedule)
+    let nextSongLocked = null;
+
+    socket.on('next_song_locked', (data) => {
+      console.log('[Admin] Next song locked:', data);
+      nextSongLocked = data;
+      loadQueue(); // Reload queue to show locked song
+    });
+
+    // Load locked song on page refresh
+    async function loadLockedSong() {
+      try {
+        const res = await fetch('/api/schedules/locked-song');
+        const data = await res.json();
+        if (data.success && data.locked_song) {
+          console.log('[Admin] Restored locked song from server:', data.locked_song);
+          nextSongLocked = data.locked_song;
+        }
+      } catch (error) {
+        console.error('[Admin] Failed to load locked song:', error);
+      }
+    }
+
     async function loadQueue() {
       const res = await fetch('/api/songs/queue');
       const data = await res.json();
       document.getElementById('queueCount').textContent = data.songs.length;
 
+      // Update next song section
+      const nextSongSection = document.getElementById('nextSongSection');
+      const nextSongContent = document.getElementById('nextSongContent');
+
+      if (nextSongLocked) {
+        nextSongSection.style.display = 'block';
+        let contentHTML = '';
+
+        if (nextSongLocked.is_offline) {
+          contentHTML = `
+            <div style="text-align: center;">
+              <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚠️</div>
+              <h5 style="color: #2c3e50; margin-bottom: 1rem;">Nhạc Offline</h5>
+              <p style="color: #666; margin-bottom: 1.5rem;">
+                ${nextSongLocked.download_failed ? 'Download YouTube bị lỗi' : 'Không có bài hát trong sảnh chờ'}
+              </p>
+              ${nextSongLocked.schedule_time ? `
+                <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); border-radius: 16px; padding: 1.5rem; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                  <div style="color: #2c3e50; font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.8;">
+                    <i class="bi bi-clock-fill"></i> Lịch phát
+                  </div>
+                  <div style="color: #c0392b; font-weight: bold; font-size: 2rem;">
+                    ${nextSongLocked.schedule_time}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        } else if (nextSongLocked.song) {
+          const s = nextSongLocked.song;
+          contentHTML = `
+            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+              <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" style="width: 120px; height: 120px; border-radius: 12px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" alt="${s.title}">
+              <div style="flex: 1; min-width: 250px;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                  <span style="background: #00b894; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold;">
+                    <i class="bi bi-check-circle-fill"></i> ĐÃ CHỐT
+                  </span>
+                  ${nextSongLocked.has_announcement ? '<span style="background: #6c5ce7; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold;"><i class="bi bi-broadcast"></i> DJ</span>' : ''}
+                </div>
+                <h5 style="color: #2c3e50; font-weight: bold; margin-bottom: 0.5rem;">
+                  <i class="bi bi-star-fill" style="color: #fdcb6e;"></i> ${s.title}
+                </h5>
+                <p style="color: #666; margin-bottom: 0;">
+                  <i class="bi bi-mic-fill"></i> ${s.artist || 'Unknown Artist'}
+                </p>
+              </div>
+              ${nextSongLocked.schedule_time ? `
+                <div style="text-align: center; background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); border-radius: 16px; padding: 1.5rem; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                  <div style="color: white; font-size: 0.8rem; margin-bottom: 0.5rem; opacity: 0.9;">
+                    <i class="bi bi-clock-fill"></i> Lịch phát
+                  </div>
+                  <div style="color: white; font-weight: bold; font-size: 2rem; line-height: 1;">
+                    ${nextSongLocked.schedule_time}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
+
+        nextSongContent.innerHTML = contentHTML;
+      } else {
+        // No locked song yet - show next schedule info to encourage voting
+        try {
+          const scheduleRes = await fetch('/api/schedules/next');
+          const scheduleData = await scheduleRes.json();
+
+          if (scheduleData.success && scheduleData.schedule) {
+            const schedule = scheduleData.schedule;
+            nextSongSection.style.display = 'block';
+            nextSongContent.innerHTML = `
+              <div style="text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎵</div>
+                <h5 style="color: #2c3e50; margin-bottom: 0.75rem;">Vote ngay!</h5>
+                <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); border-radius: 16px; padding: 1.5rem; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1.5rem;">
+                  <div style="color: white; font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.9;">
+                    <i class="bi bi-clock-fill"></i> Lịch phát
+                  </div>
+                  ${schedule.day_prefix ? `
+                    <div style="color: white; font-weight: bold; font-size: 1.2rem; margin-bottom: 0.25rem;">
+                      ${schedule.day_prefix}
+                    </div>
+                  ` : ''}
+                  <div style="color: white; font-weight: bold; font-size: 2rem;">
+                    ${schedule.next_run_display}
+                  </div>
+                </div>
+                <p style="color: #666; font-size: 1.1rem; margin-bottom: 0;">
+                  Sẽ chốt bài hát vào lúc <strong style="color: #6c5ce7;">${schedule.lock_time_display}</strong>
+                </p>
+              </div>
+            `;
+          } else {
+            nextSongSection.style.display = 'none';
+          }
+        } catch (err) {
+          console.error('Failed to load next schedule:', err);
+          nextSongSection.style.display = 'none';
+        }
+      }
+
+      // Update queue container
       if (data.songs.length === 0) {
         document.getElementById('queueContainer').innerHTML = `
           <div class="empty-state">
@@ -1865,7 +2338,7 @@
         return;
       }
 
-      document.getElementById('queueContainer').innerHTML = data.songs.map(s => `
+      const queueHTML = data.songs.map(s => `
         <div class="queue-item">
           <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="queue-item-thumbnail" alt="${s.title}">
           <div class="queue-item-content">
@@ -1909,6 +2382,8 @@
           </div>
         </div>
       `).join('');
+
+      document.getElementById('queueContainer').innerHTML = queueHTML;
     }
 
     async function loadRecentlyPlayed() {
@@ -2712,6 +3187,23 @@
         alert('Tab này không còn hoạt động.');
         return;
       }
+
+      // Check if there's a locked song for upcoming schedule
+      if (nextSongLocked && nextSongLocked.schedule_time) {
+        const scheduleTime = nextSongLocked.schedule_time;
+        const songTitle = nextSongLocked.song ? nextSongLocked.song.title : 'nhạc offline';
+
+        const confirmed = confirm(
+          `⚠️ Phát bây giờ sẽ HỦY lịch phát lúc ${scheduleTime}\n\n` +
+          `Bài đã chốt: ${songTitle}\n\n` +
+          `Bạn có chắc muốn phát ngay bây giờ không?`
+        );
+
+        if (!confirmed) {
+          return; // User cancelled
+        }
+      }
+
       await fetch('/api/playback/next', { method: 'POST' });
     }
 
@@ -3065,14 +3557,66 @@
       }
     });
 
+    // Refresh next schedule display (periodic update)
+    async function refreshNextSchedule() {
+      // Only refresh if no locked song (to avoid spam when song is already locked)
+      if (nextSongLocked) return;
+
+      try {
+        const scheduleRes = await fetch('/api/schedules/next');
+        const scheduleData = await scheduleRes.json();
+
+        const nextSongSection = document.getElementById('nextSongSection');
+        const nextSongContent = document.getElementById('nextSongContent');
+
+        if (scheduleData.success && scheduleData.schedule) {
+          const schedule = scheduleData.schedule;
+          nextSongSection.style.display = 'block';
+          nextSongContent.innerHTML = `
+            <div style="text-align: center;">
+              <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎵</div>
+              <h5 style="color: #2c3e50; margin-bottom: 0.75rem;">Vote ngay!</h5>
+              <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); border-radius: 16px; padding: 1.5rem; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1.5rem;">
+                <div style="color: white; font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.9;">
+                  <i class="bi bi-clock-fill"></i> Lịch phát
+                </div>
+                ${schedule.day_prefix ? `
+                  <div style="color: white; font-weight: bold; font-size: 1.2rem; margin-bottom: 0.25rem;">
+                    ${schedule.day_prefix}
+                  </div>
+                ` : ''}
+                <div style="color: white; font-weight: bold; font-size: 2rem;">
+                  ${schedule.next_run_display}
+                </div>
+              </div>
+              <p style="color: #666; font-size: 1.1rem; margin-bottom: 0;">
+                Sẽ chốt bài hát vào lúc <strong style="color: #6c5ce7;">${schedule.lock_time_display}</strong>
+              </p>
+            </div>
+          `;
+        } else {
+          nextSongSection.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('[Admin] Failed to refresh next schedule:', err);
+      }
+    }
+
     // Initialize
-    loadQueue();
-    loadRecentlyPlayed();
+    async function initializePage() {
+      await loadLockedSong(); // Load locked song first
+      loadQueue(); // Then load queue (will show locked song if exists)
+      loadRecentlyPlayed();
+    }
+    initializePage();
     loadSchedules();
     getUserInfo();
     loadAudioDevices();
     loadMessages();
     loadOfflineMusicList();
+
+    // Auto-refresh next schedule every 60 seconds
+    setInterval(refreshNextSchedule, 60000);
   </script>
 </body>
 </html>

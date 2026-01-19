@@ -5,6 +5,104 @@ const { isAdmin } = require('../middleware/auth');
 const schedulerService = require('../services/scheduler');
 const logger = require('../utils/logger');
 
+// Get currently locked songs (public)
+router.get('/locked-song', async (req, res) => {
+  try {
+    const lockedSongs = await schedulerService.getLockedSongs();
+
+    // Return the first locked song (should only be one at a time)
+    if (lockedSongs.length > 0) {
+      return res.json({
+        success: true,
+        locked_song: lockedSongs[0]
+      });
+    }
+
+    res.json({
+      success: true,
+      locked_song: null
+    });
+  } catch (error) {
+    logger.error('[Schedules] Error getting locked song:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi lấy bài đã chốt'
+    });
+  }
+});
+
+// Get next upcoming schedule (public)
+router.get('/next', async (req, res) => {
+  try {
+    const now = new Date();
+    const schedules = await Schedule.findAll({
+      where: {
+        is_active: true
+      },
+      order: [['next_run', 'ASC']]
+    });
+
+    // Find next schedule
+    const nextSchedule = schedules.find(s => s.next_run && new Date(s.next_run) > now);
+
+    if (!nextSchedule) {
+      return res.json({
+        success: true,
+        schedule: null
+      });
+    }
+
+    const nextRun = new Date(nextSchedule.next_run);
+    const lockTime = new Date(nextRun.getTime() - 5 * 60 * 1000); // 5 minutes before
+
+    // Determine if schedule is today, tomorrow, or another day
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const scheduleDate = new Date(nextRun);
+    scheduleDate.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.round((scheduleDate - today) / (1000 * 60 * 60 * 24));
+
+    let dayPrefix = '';
+    if (diffDays === 0) {
+      dayPrefix = ''; // Today - no prefix
+    } else if (diffDays === 1) {
+      dayPrefix = 'Ngày mai'; // Tomorrow
+    } else {
+      // Show day of week
+      const daysOfWeek = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+      dayPrefix = daysOfWeek[nextRun.getDay()];
+    }
+
+    res.json({
+      success: true,
+      schedule: {
+        id: nextSchedule.id,
+        name: nextSchedule.name,
+        next_run: nextRun.toISOString(),
+        lock_time: lockTime.toISOString(),
+        next_run_display: nextRun.toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        lock_time_display: lockTime.toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        day_prefix: dayPrefix,
+        is_today: diffDays === 0
+      }
+    });
+  } catch (error) {
+    logger.error('[Schedules] Error getting next schedule:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi lấy lịch tiếp theo'
+    });
+  }
+});
+
 // Get all schedules (admin only)
 router.get('/', isAdmin, async (req, res) => {
   try {

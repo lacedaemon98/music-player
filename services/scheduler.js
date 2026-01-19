@@ -8,6 +8,8 @@ const logger = require('../utils/logger');
 class SchedulerService {
   constructor() {
     this.jobs = new Map(); // Map of schedule_id -> Job
+    this.preDownloadJobs = new Map(); // Map of schedule_id -> Pre-download Job
+    this.scheduledSongs = new Map(); // Map of schedule_id -> { song, streamUrl, announcementData }
     this.io = null; // Socket.io instance
   }
 
@@ -95,6 +97,12 @@ class SchedulerService {
 
       this.jobs.set(scheduleRecord.id, job);
 
+      // Create pre-download job (5 minutes before main schedule)
+      const preDownloadJob = this.createPreDownloadJob(scheduleRecord);
+      if (preDownloadJob) {
+        this.preDownloadJobs.set(scheduleRecord.id, preDownloadJob);
+      }
+
       // Calculate and save next run time
       const nextRun = job.nextInvocation();
       await Schedule.update(
@@ -112,6 +120,75 @@ class SchedulerService {
   }
 
   /**
+   * Create pre-download job (5 minutes before main schedule)
+   */
+  createPreDownloadJob(scheduleRecord) {
+    try {
+      // Parse cron expression to calculate 5 minutes earlier
+      const cronParts = scheduleRecord.cron_expression.split(' ');
+
+      // For simplicity, if it's a simple cron (minute hour * * *), subtract 5 minutes
+      // Otherwise, use a RecurrenceRule
+      const Recurrence = schedule.RecurrenceRule;
+      const rule = new Recurrence();
+
+      // Parse the cron expression
+      // Format: minute hour day month dayOfWeek
+      if (cronParts.length >= 5) {
+        const [minute, hour, day, month, dayOfWeek] = cronParts;
+
+        // Set hour
+        if (hour !== '*') {
+          rule.hour = parseInt(hour);
+        }
+
+        // Set minute (5 minutes before)
+        if (minute !== '*') {
+          let preDownloadMinute = parseInt(minute) - 5;
+          if (preDownloadMinute < 0) {
+            preDownloadMinute += 60;
+            if (rule.hour !== null) {
+              rule.hour = (rule.hour - 1 + 24) % 24;
+            }
+          }
+          rule.minute = preDownloadMinute;
+        } else {
+          // Can't calculate pre-download for wildcard minutes
+          logger.warn(`[Scheduler] Cannot create pre-download job for wildcard minute schedule: ${scheduleRecord.id}`);
+          return null;
+        }
+
+        // Set day, month, dayOfWeek if specified
+        if (day !== '*') rule.date = parseInt(day);
+        if (month !== '*') rule.month = parseInt(month) - 1; // 0-indexed
+        if (dayOfWeek !== '*') {
+          // Handle comma-separated dayOfWeek (e.g., "0,1,2,3,4,5,6")
+          if (dayOfWeek.includes(',')) {
+            rule.dayOfWeek = dayOfWeek.split(',').map(d => parseInt(d.trim()));
+          } else {
+            rule.dayOfWeek = parseInt(dayOfWeek);
+          }
+        }
+      } else {
+        logger.warn(`[Scheduler] Invalid cron expression for pre-download: ${scheduleRecord.cron_expression}`);
+        return null;
+      }
+
+      const preDownloadJob = schedule.scheduleJob(rule, async () => {
+        logger.info(`[Scheduler] Pre-download job triggered for schedule: ${scheduleRecord.name}`);
+        await this.prepareScheduledSong(scheduleRecord.id, scheduleRecord.volume, scheduleRecord.song_count);
+      });
+
+      logger.info(`[Scheduler] Created pre-download job for schedule "${scheduleRecord.name}" (5 min before)`);
+      return preDownloadJob;
+
+    } catch (error) {
+      logger.error(`[Scheduler] Error creating pre-download job:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Remove a scheduled job
    */
   removeJob(scheduleId) {
@@ -120,6 +197,180 @@ class SchedulerService {
       job.cancel();
       this.jobs.delete(scheduleId);
       logger.info(`[Scheduler] Removed job for schedule ${scheduleId}`);
+    }
+
+    const preDownloadJob = this.preDownloadJobs.get(scheduleId);
+    if (preDownloadJob) {
+      preDownloadJob.cancel();
+      this.preDownloadJobs.delete(scheduleId);
+      logger.info(`[Scheduler] Removed pre-download job for schedule ${scheduleId}`);
+    }
+
+    // Clear cached song data
+    this.scheduledSongs.delete(scheduleId);
+  }
+
+  /**
+   * Prepare scheduled song (5 minutes before playback)
+   * Lock top voted song, pre-download stream, generate announcement
+   */
+  async prepareScheduledSong(scheduleId, volume = 70, songCount = 1) {
+    try {
+      logger.info(`[Scheduler] Preparing scheduled song (schedule: ${scheduleId})`);
+
+      const schedule = await Schedule.findByPk(scheduleId);
+      if (!schedule || !schedule.is_active) {
+        logger.warn(`[Scheduler] Schedule ${scheduleId} not found or inactive`);
+        return;
+      }
+
+      // Get top voted song
+      const topSong = await Song.getTopVoted();
+
+      if (!topSong) {
+        logger.warn('[Scheduler] No songs in queue for pre-download, will use offline music at schedule time');
+
+        // Cache offline music flag
+        this.scheduledSongs.set(scheduleId, {
+          song: null,
+          streamUrl: null,
+          announcementData: null,
+          isOffline: true
+        });
+
+        // Broadcast that offline music will be played
+        if (this.io) {
+          const nextRun = this.jobs.get(scheduleId)?.nextInvocation();
+          const scheduleTime = nextRun ? nextRun.toDate().toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : null;
+          this.io.emit('next_song_locked', {
+            song: null,
+            is_offline: true,
+            schedule_id: scheduleId,
+            schedule_name: schedule.name,
+            schedule_time: scheduleTime
+          });
+        }
+
+        return;
+      }
+
+      logger.info(`[Scheduler] Locked song for schedule: ${topSong.title} - ${topSong.artist}`);
+
+      // IMPORTANT: Mark song as "played" temporarily to remove from queue
+      // (Will be properly marked as played when actually played)
+      await topSong.update({ played: true });
+
+      // Pre-download YouTube stream URL
+      let streamUrl = null;
+      try {
+        if (topSong.youtube_url) {
+          logger.info('[Scheduler] Pre-downloading YouTube stream...');
+          streamUrl = await youtubeService.getStreamUrl(topSong.youtube_url);
+          logger.info('[Scheduler] YouTube stream pre-downloaded successfully');
+        } else {
+          throw new Error('No YouTube URL');
+        }
+      } catch (error) {
+        logger.error('[Scheduler] YouTube stream pre-download failed:', error.message);
+        logger.warn('[Scheduler] Will fallback to offline music at schedule time');
+
+        // Restore song to queue (download failed)
+        await topSong.update({ played: false });
+
+        // Cache fallback to offline
+        this.scheduledSongs.set(scheduleId, {
+          song: null,
+          streamUrl: null,
+          announcementData: null,
+          isOffline: true
+        });
+
+        // Broadcast fallback to offline (no song shown, just offline indicator)
+        if (this.io) {
+          const nextRun = this.jobs.get(scheduleId)?.nextInvocation();
+          const scheduleTime = nextRun ? nextRun.toDate().toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : null;
+          this.io.emit('next_song_locked', {
+            song: null,
+            download_failed: true,
+            is_offline: true,
+            schedule_id: scheduleId,
+            schedule_name: schedule.name,
+            schedule_time: scheduleTime
+          });
+          this.io.emit('queue_updated'); // Refresh queue
+        }
+
+        return;
+      }
+
+      // Generate DJ announcement if dedication message exists
+      const djService = require('./dj');
+      let announcementData = null;
+
+      if (topSong.dedication_message) {
+        try {
+          logger.info('[Scheduler] Pre-generating DJ announcement for:', topSong.title);
+          announcementData = await djService.generateAnnouncement(topSong);
+          logger.info('[Scheduler] DJ announcement pre-generated successfully');
+        } catch (error) {
+          logger.error('[Scheduler] Announcement generation failed:', error);
+        }
+      }
+
+      // Cache everything for playback
+      this.scheduledSongs.set(scheduleId, {
+        song: topSong,
+        streamUrl: streamUrl,
+        announcementData: announcementData,
+        isOffline: false
+      });
+
+      logger.info(`[Scheduler] Song prepared successfully: ${topSong.title}`);
+
+      // Get next run time (only time, not full date)
+      const nextRun = this.jobs.get(scheduleId)?.nextInvocation();
+      const scheduleTime = nextRun ? nextRun.toDate().toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : null;
+
+      // Broadcast "next song" to all clients (show in queue)
+      // ONLY AFTER successful download and ready to play
+      if (this.io) {
+        logger.info(`[Scheduler] ✓ Ready to broadcast - Song downloaded and cached`);
+        logger.info(`[Scheduler] ✓ Stream URL ready: ${!!streamUrl}`);
+        logger.info(`[Scheduler] ✓ Announcement ready: ${!!announcementData}`);
+
+        this.io.emit('next_song_locked', {
+          song: topSong.toJSON(),
+          has_announcement: !!announcementData,
+          schedule_id: scheduleId,
+          schedule_name: schedule.name,
+          schedule_time: scheduleTime
+        });
+
+        // Refresh queue to remove locked song
+        this.io.emit('queue_updated');
+
+        logger.info(`[Scheduler] ✓ Broadcasted next_song_locked to all clients`);
+      }
+
+    } catch (error) {
+      logger.error(`[Scheduler] Error preparing scheduled song:`, error);
+
+      // Cache offline fallback
+      this.scheduledSongs.set(scheduleId, {
+        song: null,
+        streamUrl: null,
+        announcementData: null,
+        isOffline: true
+      });
     }
   }
 
@@ -137,25 +388,182 @@ class SchedulerService {
         return;
       }
 
+      // Check if schedule was already executed recently (within last 10 minutes)
+      // This happens when admin triggers "Next" with a locked song
+      if (schedule.last_run) {
+        const now = new Date();
+        const lastRun = new Date(schedule.last_run);
+        const minutesSinceLastRun = (now - lastRun) / (1000 * 60);
+
+        if (minutesSinceLastRun < 10) {
+          logger.info(`[Scheduler] Schedule ${scheduleId} was already executed ${minutesSinceLastRun.toFixed(1)} minutes ago (admin early trigger). Skipping.`);
+
+          // Still update next_run for future schedules
+          const job = this.jobs.get(scheduleId);
+          if (job) {
+            const nextInvocation = job.nextInvocation();
+            const newNextRun = nextInvocation ? nextInvocation.toDate() : null;
+            await Schedule.update(
+              { next_run: newNextRun },
+              { where: { id: scheduleId } }
+            );
+            logger.info(`[Scheduler] Updated next_run for schedule ${scheduleId}: ${newNextRun}`);
+          }
+
+          return; // Skip execution
+        }
+      }
+
       // Update last run time
       schedule.last_run = new Date();
       await schedule.save();
 
-      // Play multiple songs if requested
-      for (let i = 0; i < songCount; i++) {
-        // Only auto-next if this is NOT the last song
-        const autoNext = (i < songCount - 1);
-        await this.playTopSong(volume, autoNext);
+      // Check if we have pre-downloaded song
+      const preparedData = this.scheduledSongs.get(scheduleId);
 
-        // Wait between songs if playing multiple (2 seconds)
-        if (i < songCount - 1) {
+      if (preparedData) {
+        logger.info('[Scheduler] Using pre-downloaded song data');
+
+        // Play first song using cached data
+        await this.playPreparedSong(preparedData, volume, songCount > 1);
+
+        // Clear cache after use
+        this.scheduledSongs.delete(scheduleId);
+
+        // Play remaining songs if requested
+        for (let i = 1; i < songCount; i++) {
           await new Promise(resolve => setTimeout(resolve, 2000));
+          const autoNext = (i < songCount - 1);
+          await this.playTopSong(volume, autoNext);
         }
+      } else {
+        // Fallback to old behavior if no pre-download
+        logger.warn('[Scheduler] No pre-downloaded data, using fallback');
+
+        for (let i = 0; i < songCount; i++) {
+          const autoNext = (i < songCount - 1);
+          await this.playTopSong(volume, autoNext);
+
+          if (i < songCount - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+
+      // Update next_run to the next occurrence after execution completes
+      const job = this.jobs.get(scheduleId);
+      if (job) {
+        const nextInvocation = job.nextInvocation();
+        const newNextRun = nextInvocation ? nextInvocation.toDate() : null;
+        await Schedule.update(
+          { next_run: newNextRun },
+          { where: { id: scheduleId } }
+        );
+        logger.info(`[Scheduler] Updated next_run for schedule ${scheduleId}: ${newNextRun}`);
       }
 
       logger.info(`[Scheduler] Schedule ${scheduleId} executed successfully`);
     } catch (error) {
       logger.error(`[Scheduler] Error executing schedule ${scheduleId}:`, error);
+    }
+  }
+
+  /**
+   * Play pre-downloaded song (from cache)
+   * @param {object} preparedData - Cached song data { song, streamUrl, announcementData, isOffline }
+   * @param {number} volume - Volume level (0-100)
+   * @param {boolean} autoNext - Whether to auto-play next song when current ends
+   */
+  async playPreparedSong(preparedData, volume, autoNext = true) {
+    try {
+      const { song, streamUrl, announcementData, isOffline } = preparedData;
+
+      // If offline music fallback
+      if (isOffline || !song) {
+        logger.warn('[Scheduler] Playing offline music (pre-download failed or no queue)');
+
+        const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
+
+        if (!offlineMusic) {
+          logger.warn('[Scheduler] No offline music available');
+          return;
+        }
+
+        logger.info(`[Scheduler] Playing offline music: ${offlineMusic.title}`);
+
+        const offlineStreamUrl = `/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`;
+
+        if (this.io) {
+          this.io.emit('play_song', {
+            song: {
+              id: null,
+              title: offlineMusic.title,
+              artist: 'Offline Music',
+              thumbnail_url: '/images/offline-music.png'
+            },
+            stream_url: offlineStreamUrl,
+            volume: volume,
+            auto_next: autoNext
+          });
+
+          logger.info(`[Scheduler] Broadcasted offline music play event (auto_next: ${autoNext})`);
+        } else {
+          logger.error('[Scheduler] Socket.io not initialized!');
+        }
+
+        return;
+      }
+
+      // Mark song as played
+      await song.markAsPlayed();
+
+      logger.info(`[Scheduler] Playing pre-downloaded song: ${song.title} - ${song.artist}`);
+
+      // Use cached stream URL or fallback to proxy
+      const finalStreamUrl = streamUrl || `/api/playback/stream/${song.id}`;
+
+      // Broadcast play event with cached announcement data
+      if (this.io) {
+        if (announcementData) {
+          const payload = {
+            song: song.toJSON(),
+            announcement_text: announcementData.text,
+            stream_url: finalStreamUrl,
+            volume: volume,
+            auto_next: autoNext
+          };
+
+          // Add audio URL if TTS audio was generated
+          if (announcementData.audioPath) {
+            const path = require('path');
+            const filename = path.basename(announcementData.audioPath);
+            payload.announcement_audio_url = `/api/playback/tts/audio/${filename}`;
+            logger.info('[Scheduler] Broadcasting play_announcement with pre-generated audio');
+          } else {
+            logger.info('[Scheduler] Broadcasting play_announcement with text (Web Speech fallback)');
+          }
+
+          this.io.emit('play_announcement', payload);
+        } else {
+          this.io.emit('play_song', {
+            song: song.toJSON(),
+            stream_url: finalStreamUrl,
+            volume: volume,
+            auto_next: autoNext
+          });
+        }
+
+        // Broadcast queue and recently played updates
+        this.io.emit('queue_updated');
+        this.io.emit('recently_played_updated');
+
+        logger.info(`[Scheduler] Broadcasted play event for pre-downloaded song (auto_next: ${autoNext})`);
+      } else {
+        logger.error('[Scheduler] Socket.io not initialized!');
+      }
+    } catch (error) {
+      logger.error('[Scheduler] Error playing prepared song:', error);
+      throw error;
     }
   }
 
@@ -303,6 +711,41 @@ class SchedulerService {
       });
     }
     return status;
+  }
+
+  /**
+   * Get currently locked songs (for page refresh)
+   * Returns array of locked song data with schedule info
+   */
+  async getLockedSongs() {
+    const lockedSongs = [];
+
+    for (const [scheduleId, preparedData] of this.scheduledSongs.entries()) {
+      const schedule = await Schedule.findByPk(scheduleId);
+      if (!schedule) continue;
+
+      const nextRun = schedule.next_run ? new Date(schedule.next_run) : null;
+      if (!nextRun) continue;
+
+      const lockedSongData = {
+        schedule_id: scheduleId,
+        schedule_time: nextRun.toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        is_offline: preparedData.isOffline || !preparedData.song,
+        download_failed: preparedData.isOffline && preparedData.song === null
+      };
+
+      if (preparedData.song) {
+        lockedSongData.song = preparedData.song.toJSON ? preparedData.song.toJSON() : preparedData.song;
+        lockedSongData.has_announcement = !!preparedData.announcementData;
+      }
+
+      lockedSongs.push(lockedSongData);
+    }
+
+    return lockedSongs;
   }
 }
 

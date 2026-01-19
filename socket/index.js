@@ -8,6 +8,18 @@ let activeAdminSessionId = null;
 // Track currently playing song
 let currentlyPlayingSong = null;
 
+// Track detailed playback state (for resume on reconnect)
+let playbackState = {
+  stage: 'idle', // 'idle' | 'announcement' | 'music'
+  position: 0, // seconds
+  song: null,
+  announcement_text: null,
+  announcement_url: null, // ElevenLabs audio URL for announcement
+  stream_url: null,
+  auto_next: false,
+  volume: 70
+};
+
 function setupSocket(io) {
   logger.info('[Socket.io] Initializing Socket.io handlers');
 
@@ -102,6 +114,29 @@ function setupSocket(io) {
       }
     });
 
+    // Handle playback state update (for resume on reconnect)
+    socket.on('playback_state_update', (data) => {
+      if (socket.isAdmin && isActiveAdmin(socket.id)) {
+        // Update playback state
+        playbackState.stage = data.stage || playbackState.stage;
+        playbackState.position = data.position || 0;
+        playbackState.song = data.song || playbackState.song;
+        playbackState.announcement_text = data.announcement_text || null;
+        playbackState.announcement_url = data.announcement_url || null;
+        playbackState.stream_url = data.stream_url || playbackState.stream_url;
+        playbackState.auto_next = data.auto_next !== undefined ? data.auto_next : playbackState.auto_next;
+        playbackState.volume = data.volume || playbackState.volume;
+      }
+    });
+
+    // Handle request for playback state (for resume on reconnect)
+    socket.on('get_playback_state', () => {
+      if (socket.isAdmin && isActiveAdmin(socket.id)) {
+        logger.info(`[Socket.io] Admin requesting playback state for resume`);
+        socket.emit('playback_state', playbackState);
+      }
+    });
+
     // Handle song started notification from admin
     socket.on('song_started', (data) => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
@@ -119,6 +154,17 @@ function setupSocket(io) {
         logger.info(`[Socket.io] Song ended, broadcasting to all clients`);
         // Clear currently playing song
         currentlyPlayingSong = null;
+        // Clear playback state
+        playbackState = {
+          stage: 'idle',
+          position: 0,
+          song: null,
+          announcement_text: null,
+          announcement_url: null,
+          stream_url: null,
+          auto_next: false,
+          volume: playbackState.volume // Keep volume
+        };
         // Broadcast to all clients (including public pages)
         io.emit('song_ended');
       }
@@ -130,6 +176,17 @@ function setupSocket(io) {
         logger.info(`[Socket.io] Playback stopped (schedule ended), broadcasting to all clients`);
         // Clear currently playing song
         currentlyPlayingSong = null;
+        // Clear playback state
+        playbackState = {
+          stage: 'idle',
+          position: 0,
+          song: null,
+          announcement_text: null,
+          announcement_url: null,
+          stream_url: null,
+          auto_next: false,
+          volume: playbackState.volume // Keep volume
+        };
         // Broadcast to all clients (including public pages)
         io.emit('song_ended');
       }

@@ -114,9 +114,126 @@ router.post('/play/:song_id', isAdmin, async (req, res) => {
 // Play next top-voted song (admin only)
 router.post('/next', isAdmin, async (req, res) => {
   try {
-    const topSong = await Song.getTopVoted();
     const playbackState = await PlaybackState.getCurrent();
     const io = req.app.get('io');
+    const schedulerService = require('../services/scheduler');
+
+    // Check if there's a locked song for upcoming schedule
+    const lockedSongs = await schedulerService.getLockedSongs();
+
+    if (lockedSongs.length > 0) {
+      // There's a locked song - play it now (early schedule trigger)
+      const lockedData = lockedSongs[0];
+      const scheduleId = lockedData.schedule_id;
+
+      logger.info(`[Playback] Admin triggered "Next" with locked song for schedule ${scheduleId}`);
+
+      // Get cached data from scheduler
+      const preparedData = schedulerService.scheduledSongs.get(scheduleId);
+
+      if (preparedData) {
+        // Play the prepared song
+        const { song, streamUrl, announcementData, isOffline } = preparedData;
+
+        if (isOffline || !song) {
+          // Play offline music
+          const offlineMusicService = require('../services/offlineMusic');
+          const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
+
+          if (!offlineMusic) {
+            return res.status(404).json({
+              success: false,
+              message: 'Không có nhạc offline'
+            });
+          }
+
+          const offlineStreamUrl = `/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`;
+
+          playbackState.current_song_id = null;
+          playbackState.is_playing = true;
+          await playbackState.save();
+
+          io.emit('play_song', {
+            song: {
+              id: null,
+              title: offlineMusic.title,
+              artist: 'Offline Music',
+              thumbnail_url: '/images/offline-music.png'
+            },
+            stream_url: offlineStreamUrl,
+            volume: playbackState.volume,
+            auto_next: false
+          });
+
+          // Clear cache
+          schedulerService.scheduledSongs.delete(scheduleId);
+
+          // Mark schedule as executed (to prevent it from running again at scheduled time)
+          const Schedule = require('../models').Schedule;
+          const schedule = await Schedule.findByPk(scheduleId);
+          if (schedule) {
+            schedule.last_run = new Date();
+            await schedule.save();
+            logger.info(`[Playback] Marked schedule ${scheduleId} as executed (early trigger by admin - offline music)`);
+          }
+
+          return res.json({
+            success: true,
+            song: { title: offlineMusic.title, artist: 'Offline Music' },
+            stream_url: offlineStreamUrl,
+            is_offline: true
+          });
+        }
+
+        // Play the locked song with announcement if available
+        playbackState.current_song_id = song.id;
+        playbackState.is_playing = true;
+        await playbackState.save();
+
+        if (announcementData) {
+          io.emit('play_announcement', {
+            song: song.toJSON ? song.toJSON() : song,
+            announcement_text: announcementData.text,
+            stream_url: streamUrl,
+            volume: playbackState.volume,
+            auto_next: false
+          });
+        } else {
+          io.emit('play_song', {
+            song: song.toJSON ? song.toJSON() : song,
+            stream_url: streamUrl,
+            volume: playbackState.volume,
+            auto_next: false
+          });
+        }
+
+        io.emit('queue_updated');
+
+        // Clear cache after playing
+        schedulerService.scheduledSongs.delete(scheduleId);
+
+        // Mark schedule as executed (to prevent it from running again at scheduled time)
+        const Schedule = require('../models').Schedule;
+        const schedule = await Schedule.findByPk(scheduleId);
+        if (schedule) {
+          schedule.last_run = new Date();
+          await schedule.save();
+          logger.info(`[Playback] Marked schedule ${scheduleId} as executed (early trigger by admin)`);
+        }
+
+        logger.info(`[Playback] Played locked song early: ${song.title}`);
+
+        return res.json({
+          success: true,
+          song: song.toJSON ? song.toJSON() : song,
+          stream_url: streamUrl,
+          played_locked_song: true
+        });
+      }
+    }
+
+    // No locked song - proceed with normal top voted song
+    const topSong = await Song.getTopVoted();
 
     // If no songs in queue, try to play offline music
     if (!topSong) {
