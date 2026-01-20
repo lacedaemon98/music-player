@@ -26,20 +26,57 @@ jobs:
                         git pull origin master && \
                         AFTER=$(git rev-parse HEAD) && \
 
-                        # Check if package.json or Dockerfile changed (need rebuild)
-                        if git diff --name-only $BEFORE $AFTER | grep -qE '^(package\.json|Dockerfile)$'; then
-                          echo "🔨 Dependencies or Dockerfile changed, rebuilding..." && \
+                        # Determine what changed
+                        CHANGED_FILES=$(git diff --name-only $BEFORE $AFTER) && \
+                        echo "📝 Changed files:" && \
+                        echo "$CHANGED_FILES" && \
+
+                        # Check for different types of changes
+                        DEPS_CHANGED=$(echo "$CHANGED_FILES" | grep -qE '^(package\.json|package-lock\.json)$' && echo "yes" || echo "no") && \
+                        DOCKERFILE_CHANGED=$(echo "$CHANGED_FILES" | grep -qE '^(Dockerfile|docker-compose\.yml)$' && echo "yes" || echo "no") && \
+                        MIGRATIONS_CHANGED=$(echo "$CHANGED_FILES" | grep -qE '^(migrations/|migrate\.js)$' && echo "yes" || echo "no") && \
+
+                        echo "🔍 Changes detected:" && \
+                        echo "  - Dependencies: $DEPS_CHANGED" && \
+                        echo "  - Dockerfile: $DOCKERFILE_CHANGED" && \
+                        echo "  - Migrations: $MIGRATIONS_CHANGED" && \
+
+                        # Decide deployment strategy
+                        if [ "$DOCKERFILE_CHANGED" = "yes" ] || [ "$DEPS_CHANGED" = "yes" ]; then
+                          echo "🔨 Dockerfile or dependencies changed, full rebuild required..." && \
+                          echo "⏹️  Stopping containers..." && \
                           docker compose down && \
+                          echo "🏗️  Building new images (no cache)..." && \
                           docker compose build --no-cache && \
+                          echo "🚀 Starting containers..." && \
                           docker compose up -d && \
-                          docker system prune -f
+                          echo "🧹 Cleaning up unused images..." && \
+                          docker system prune -f && \
+                          echo "✅ Full rebuild completed!"
                         else
-                          echo "♻️  Only code changes, restarting container..." && \
-                          docker compose restart
+                          echo "♻️  Code-only changes, quick restart..." && \
+                          docker compose restart && \
+                          echo "✅ Quick restart completed!"
                         fi && \
 
-                        echo "✅ Deployment completed!" && \
-                        echo "📊 Container status:" && \
+                        # Run migrations if needed (after container is up)
+                        if [ "$MIGRATIONS_CHANGED" = "yes" ]; then
+                          echo "🗄️  Migrations detected, running migrations..." && \
+                          sleep 3 && \
+                          docker compose exec -T app node migrate.js && \
+                          echo "✅ Migrations completed!" || \
+                          echo "⚠️  Migration failed or no migrations to run"
+                        fi && \
+
+                        # Health check
+                        echo "" && \
+                        echo "📊 Deployment Summary:" && \
+                        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" && \
+                        echo "📦 Container Status:" && \
                         docker compose ps && \
-                        echo "📝 Recent logs:" && \
-                        docker compose logs --tail 20
+                        echo "" && \
+                        echo "📝 Recent Logs (last 20 lines):" && \
+                        docker compose logs --tail 20 && \
+                        echo "" && \
+                        echo "✅ Deployment completed successfully!" && \
+                        echo "🌐 Application should be running at http://103.148.57.174"

@@ -137,7 +137,15 @@ function setupSocket(io) {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
 
-        // Check database to ensure there's actually a song playing
+        // FIRST: Check if lastPlayedSongData exists
+        // If it was cleared by stop/end, don't resume
+        if (!lastPlayedSongData) {
+          logger.info(`[Socket.io] No cached playback data, not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
+
+        // SECOND: Check database to ensure there's actually a song playing
         const PlaybackState = require('../models').PlaybackState;
         const dbState = await PlaybackState.getCurrent();
 
@@ -148,25 +156,25 @@ function setupSocket(io) {
           return;
         }
 
-        // If we have recent lastPlayedSongData (within last 10 minutes), send it
-        // This allows admin to resume without re-extracting stream URL
-        if (lastPlayedSongData && (Date.now() - lastPlayedSongData.timestamp < 10 * 60 * 1000)) {
-          logger.info(`[Socket.io] Sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
-
-          // Send full play_song event to resume playback
-          socket.emit('play_song', {
-            song: lastPlayedSongData.song,
-            stream_url: lastPlayedSongData.stream_url,
-            announcement_text: lastPlayedSongData.announcement_text,
-            announcement_url: lastPlayedSongData.announcement_url,
-            volume: lastPlayedSongData.volume,
-            auto_next: lastPlayedSongData.auto_next,
-            is_reconnect: true // Flag to indicate this is a reconnect
-          });
-        } else {
-          // No recent data or data expired - send basic playback state
-          socket.emit('playback_state', playbackState);
+        // THIRD: Check if data is recent (within last 10 minutes)
+        if (Date.now() - lastPlayedSongData.timestamp > 10 * 60 * 1000) {
+          logger.info(`[Socket.io] Cached data too old, not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
         }
+
+        // All checks passed - send cached data for resume
+        logger.info(`[Socket.io] Sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
+
+        socket.emit('play_song', {
+          song: lastPlayedSongData.song,
+          stream_url: lastPlayedSongData.stream_url,
+          announcement_text: lastPlayedSongData.announcement_text,
+          announcement_url: lastPlayedSongData.announcement_url,
+          volume: lastPlayedSongData.volume,
+          auto_next: lastPlayedSongData.auto_next,
+          is_reconnect: true // Flag to indicate this is a reconnect
+        });
       }
     });
 
