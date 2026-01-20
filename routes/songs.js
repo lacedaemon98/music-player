@@ -361,4 +361,73 @@ router.post('/:id/reparse', isAdmin, async (req, res) => {
   }
 });
 
+// Star/unstar a song (admin only)
+router.post('/:id/star', isAdmin, async (req, res) => {
+  try {
+    const song = await Song.findByPk(req.params.id);
+
+    if (!song) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy bài hát'
+      });
+    }
+
+    // Toggle starred status
+    song.starred = !song.starred;
+    await song.save();
+
+    logger.info(`[Songs] Song ${song.id} starred status: ${song.starred}`);
+
+    res.json({
+      success: true,
+      starred: song.starred,
+      message: song.starred ? 'Đã đánh dấu ưu tiên' : 'Đã bỏ ưu tiên'
+    });
+  } catch (error) {
+    logger.error('[Songs] Error starring song:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi đánh dấu bài hát'
+    });
+  }
+});
+
+// Move played song back to queue (admin only)
+router.post('/:id/back-to-queue', isAdmin, async (req, res) => {
+  try {
+    const song = await Song.findByPk(req.params.id);
+
+    if (!song) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy bài hát'
+      });
+    }
+
+    if (!song.played) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bài hát chưa được phát'
+      });
+    }
+
+    // Restore to queue (keeps votes and dedication message)
+    await song.restoreToQueue();
+
+    logger.info(`[Songs] Song ${song.id} restored to queue (votes kept)`);
+
+    res.json({
+      success: true,
+      message: 'Đã đưa bài hát về queue (giữ vote và lời nhắn)'
+    });
+  } catch (error) {
+    logger.error('[Songs] Error moving song back to queue:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi đưa bài hát về queue'
+    });
+  }
+});
+
 module.exports = router;

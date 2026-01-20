@@ -9,6 +9,7 @@ class Song extends Model {
   // Get top voted song from queue
   static async getTopVoted() {
     // Use raw SQL to avoid complex Sequelize query issues
+    // Starred songs have highest priority, then by vote count, then by added_at
     const [results] = await this.sequelize.query(`
       SELECT
         s.*,
@@ -17,7 +18,7 @@ class Song extends Model {
       LEFT JOIN votes v ON s.id = v.song_id
       WHERE s.played = 0
       GROUP BY s.id
-      ORDER BY vote_count DESC, s.added_at ASC
+      ORDER BY s.starred DESC, vote_count DESC, s.added_at ASC
       LIMIT 1
     `);
 
@@ -36,12 +37,9 @@ class Song extends Model {
     await this.save();
   }
 
-  // Restore song to queue
+  // Restore song to queue (keep votes and dedication message)
   async restoreToQueue() {
-    // Delete all votes
-    await this.setVotes([]);
-
-    // Reset played status
+    // Reset played status only (keep votes and dedication message)
     this.played = false;
     this.played_at = null;
     await this.save();
@@ -99,6 +97,11 @@ module.exports = (sequelize) => {
     dedication_message: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    starred: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false
     }
   }, {
     sequelize,

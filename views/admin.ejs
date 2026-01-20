@@ -2373,6 +2373,9 @@
               <i class="bi bi-hand-thumbs-up-fill"></i>
               <span>${s.vote_count}</span>
             </div>
+            <button class="btn btn-sm ${s.starred ? 'btn-warning' : 'btn-outline-secondary'}" onclick="toggleStar(${s.id})" title="${s.starred ? 'Bỏ ưu tiên' : 'Đánh dấu ưu tiên (lên đầu queue)'}" style="margin-right: 0.5rem;">
+              <i class="bi bi-star-fill"></i>
+            </button>
             <button class="btn btn-sm btn-warning" onclick="reparseSong(${s.id})" title="Parse lại tên bài/ca sĩ bằng AI" style="margin-right: 0.5rem;">
               <i class="bi bi-arrow-repeat"></i>
             </button>
@@ -2416,6 +2419,9 @@
             </div>
           </div>
           <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-success" onclick="backToQueue(${s.id})" title="Đưa bài hát về queue (giữ vote và lời nhắn)">
+              <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
             <button class="btn btn-sm btn-warning" onclick="reparseSong(${s.id})" title="Parse lại tên bài/ca sĩ bằng AI">
               <i class="bi bi-arrow-repeat"></i>
             </button>
@@ -3179,6 +3185,43 @@
       } catch (error) {
         console.error('[Admin] Error re-parsing song:', error);
         alert('Không thể parse lại metadata');
+      }
+    }
+
+    async function toggleStar(id) {
+      try {
+        const res = await fetch(`/api/songs/${id}/star`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          // Reload queue to show updated star status
+          loadQueue();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error toggling star:', error);
+        alert('Không thể đánh dấu bài hát');
+      }
+    }
+
+    async function backToQueue(id) {
+      if (!confirm('Đưa bài hát này về queue?\n\nLượt vote và lời nhắn sẽ được giữ nguyên.')) return;
+
+      try {
+        const res = await fetch(`/api/songs/${id}/back-to-queue`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          // Reload both queue and recently played
+          loadQueue();
+          loadRecentlyPlayed();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error moving song back to queue:', error);
+        alert('Không thể đưa bài hát về queue');
       }
     }
 
