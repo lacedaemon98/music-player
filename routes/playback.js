@@ -449,24 +449,31 @@ router.post('/resume', isAdmin, async (req, res) => {
 // Stop playback completely (admin only)
 router.post('/stop', isAdmin, async (req, res) => {
   try {
+    logger.info('[Playback] ===== STOP REQUESTED =====');
+
+    // FIRST: Clear cached playback data (prevent resume)
+    clearPlaybackData();
+    logger.info('[Playback] Cleared playback cache');
+
+    // SECOND: Update database (source of truth)
     const playbackState = await PlaybackState.getCurrent();
     playbackState.current_song_id = null;
     playbackState.is_playing = false;
     playbackState.position = 0;
     await playbackState.save();
+    logger.info('[Playback] Updated database - is_playing: false, song_id: null');
 
-    // Reset schedule counter (stop any ongoing schedule)
+    // THIRD: Reset schedule counter (stop any ongoing schedule)
     const schedulerService = require('../services/scheduler');
     schedulerService.resetScheduleSongsCounter();
+    logger.info('[Playback] Reset schedule counter');
 
-    // Clear cached playback data (so refresh won't resume old song)
-    clearPlaybackData();
-
-    logger.info('[Playback] Playback stopped by admin');
-
-    // Broadcast stop event
+    // FOURTH: Broadcast stop event
     const io = req.app.get('io');
     io.emit('playback_stopped');
+    logger.info('[Playback] Broadcasted playback_stopped event');
+
+    logger.info('[Playback] ===== STOP COMPLETED =====');
 
     res.json({
       success: true

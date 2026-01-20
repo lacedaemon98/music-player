@@ -137,26 +137,25 @@ function setupSocket(io) {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
 
-        // FIRST: Check if lastPlayedSongData exists
-        // If it was cleared by stop/end, don't resume
-        if (!lastPlayedSongData) {
-          logger.info(`[Socket.io] No cached playback data, not resuming`);
-          socket.emit('playback_state', { stage: 'idle', song: null });
-          return;
-        }
-
-        // SECOND: Check database to ensure there's actually a song playing
+        // CRITICAL: Check database FIRST (source of truth)
         const PlaybackState = require('../models').PlaybackState;
         const dbState = await PlaybackState.getCurrent();
 
         // If database says not playing or no song, don't resume
         if (!dbState.is_playing || !dbState.current_song_id) {
-          logger.info(`[Socket.io] Database shows no active playback, not resuming`);
+          logger.info(`[Socket.io] Database shows no active playback (is_playing: ${dbState.is_playing}, song_id: ${dbState.current_song_id}), not resuming`);
           socket.emit('playback_state', { stage: 'idle', song: null });
           return;
         }
 
-        // THIRD: Check if data is recent (within last 10 minutes)
+        // Database says playing - check if we have cached data
+        if (!lastPlayedSongData) {
+          logger.info(`[Socket.io] Database says playing but no cached data - sending idle state`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
+
+        // Check if data is recent (within last 10 minutes)
         if (Date.now() - lastPlayedSongData.timestamp > 10 * 60 * 1000) {
           logger.info(`[Socket.io] Cached data too old, not resuming`);
           socket.emit('playback_state', { stage: 'idle', song: null });
@@ -164,7 +163,7 @@ function setupSocket(io) {
         }
 
         // All checks passed - send cached data for resume
-        logger.info(`[Socket.io] Sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
+        logger.info(`[Socket.io] All checks passed - sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
 
         socket.emit('play_song', {
           song: lastPlayedSongData.song,
