@@ -6,7 +6,7 @@ const { ipUserMiddleware } = require('../middleware/ipUser');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
-// Get recent messages (last 3 days, max 50)
+// Get recent messages (last 3 days, max 200)
 router.get('/messages', async (req, res) => {
   try {
     // Get messages from last 3 days only
@@ -27,7 +27,7 @@ router.get('/messages', async (req, res) => {
         }
       ],
       order: [['created_at', 'DESC']],
-      limit: 50
+      limit: 200
     });
 
     // Reverse to show oldest first
