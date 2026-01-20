@@ -20,6 +20,9 @@ let playbackState = {
   volume: 70
 };
 
+// Store last played song data for reconnect (including full play_song event data)
+let lastPlayedSongData = null;
+
 function setupSocket(io) {
   logger.info('[Socket.io] Initializing Socket.io handlers');
 
@@ -133,7 +136,26 @@ function setupSocket(io) {
     socket.on('get_playback_state', () => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
-        socket.emit('playback_state', playbackState);
+
+        // If we have recent lastPlayedSongData (within last 10 minutes), send it
+        // This allows admin to resume without re-extracting stream URL
+        if (lastPlayedSongData && (Date.now() - lastPlayedSongData.timestamp < 10 * 60 * 1000)) {
+          logger.info(`[Socket.io] Sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
+
+          // Send full play_song event to resume playback
+          socket.emit('play_song', {
+            song: lastPlayedSongData.song,
+            stream_url: lastPlayedSongData.stream_url,
+            announcement_text: lastPlayedSongData.announcement_text,
+            announcement_url: lastPlayedSongData.announcement_url,
+            volume: lastPlayedSongData.volume,
+            auto_next: lastPlayedSongData.auto_next,
+            is_reconnect: true // Flag to indicate this is a reconnect
+          });
+        } else {
+          // No recent data or data expired - send basic playback state
+          socket.emit('playback_state', playbackState);
+        }
       }
     });
 
@@ -142,6 +164,18 @@ function setupSocket(io) {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Song started: ${data.song.title}`);
         currentlyPlayingSong = data.song;
+
+        // Store full play_song data for reconnect (including stream_url, announcement, etc.)
+        lastPlayedSongData = {
+          song: data.song,
+          stream_url: data.stream_url,
+          announcement_text: data.announcement_text,
+          announcement_url: data.announcement_url,
+          volume: data.volume,
+          auto_next: data.auto_next,
+          timestamp: Date.now()
+        };
+
         // Only update server state - don't re-broadcast play_song (would cause infinite loop)
         // Public clients will get the song info via 'get_current_song' or when they load the page
         io.emit('song_playing_update', { song: data.song });
@@ -176,6 +210,8 @@ function setupSocket(io) {
 
         // Clear currently playing song
         currentlyPlayingSong = null;
+        // Clear last played song data
+        lastPlayedSongData = null;
         // Clear playback state
         playbackState = {
           stage: 'idle',
@@ -198,6 +234,8 @@ function setupSocket(io) {
         logger.info(`[Socket.io] Playback stopped (schedule ended), broadcasting to all clients`);
         // Clear currently playing song
         currentlyPlayingSong = null;
+        // Clear last played song data
+        lastPlayedSongData = null;
         // Clear playback state
         playbackState = {
           stage: 'idle',
@@ -229,8 +267,9 @@ function setupSocket(io) {
         const disconnectedUserId = activeAdminUserId;
         logger.info(`[Socket.io] Active admin session ended (user: ${activeAdminUserId})`);
 
-        // Clear currently playing song
+        // Clear currently playing song and last played data
         currentlyPlayingSong = null;
+        lastPlayedSongData = null;
         logger.info(`[Socket.io] Cleared currently playing song due to admin disconnect`);
 
         // Clear socket but KEEP user ID for a short time (to handle refresh)
@@ -263,6 +302,14 @@ function getCurrentSong() {
   return currentlyPlayingSong;
 }
 
+// Export function to clear playback data (for stop/reset)
+function clearPlaybackData() {
+  currentlyPlayingSong = null;
+  lastPlayedSongData = null;
+  logger.info('[Socket.io] Cleared playback data (stop/reset)');
+}
+
 module.exports = setupSocket;
 module.exports.isActiveAdmin = isActiveAdmin;
 module.exports.getCurrentSong = getCurrentSong;
+module.exports.clearPlaybackData = clearPlaybackData;

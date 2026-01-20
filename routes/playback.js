@@ -5,7 +5,8 @@ const { isAdmin } = require('../middleware/auth');
 const youtubeService = require('../services/youtube');
 const offlineMusicService = require('../services/offlineMusic');
 const logger = require('../utils/logger');
-const { getCurrentSong } = require('../socket');
+const { getCurrentSong, clearPlaybackData } = require('../socket');
+const cache = require('../services/cache');
 
 // Get current playback status
 router.get('/status', async (req, res) => {
@@ -458,6 +459,9 @@ router.post('/stop', isAdmin, async (req, res) => {
     const schedulerService = require('../services/scheduler');
     schedulerService.resetScheduleSongsCounter();
 
+    // Clear cached playback data (so refresh won't resume old song)
+    clearPlaybackData();
+
     logger.info('[Playback] Playback stopped by admin');
 
     // Broadcast stop event
@@ -524,7 +528,17 @@ router.get('/stream/:song_id', async (req, res) => {
 
     logger.info(`[Playback] Getting stream URL for: ${song.title}`);
 
-    // Use yt-dlp to get direct URL with range request support
+    // Check cache first
+    const cacheKey = `stream_url:${song.youtube_url}`;
+    const cachedUrl = cache.get(cacheKey);
+
+    if (cachedUrl) {
+      logger.info(`[Playback] Using cached stream URL for: ${song.title}`);
+      return res.redirect(cachedUrl);
+    }
+
+    // Cache miss - extract using yt-dlp
+    logger.info(`[Playback] Cache miss - extracting stream URL for: ${song.title}`);
     const { execSync } = require('child_process');
 
     try {
@@ -539,7 +553,10 @@ router.get('/stream/:song_id', async (req, res) => {
         throw new Error('Empty stream URL returned');
       }
 
-      logger.info(`[Playback] Got stream URL for: ${song.title}`);
+      // Cache the stream URL for 5 minutes
+      cache.set(cacheKey, directUrl, 5 * 60 * 1000);
+
+      logger.info(`[Playback] Got and cached stream URL for: ${song.title}`);
 
       // Redirect to direct URL (supports range requests for seeking)
       return res.redirect(directUrl);

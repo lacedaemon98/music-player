@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
 const { parseSongMetadata } = require('./song-parser');
+const cache = require('./cache');
 
 class YouTubeService {
   /**
@@ -59,6 +60,7 @@ class YouTubeService {
 
   /**
    * Get audio stream URL (highest quality) using yt-dlp
+   * Results are cached for 5 minutes to reduce repeated extractions
    */
   async getStreamUrl(url) {
     try {
@@ -69,7 +71,17 @@ class YouTubeService {
       // Strip playlist parameters
       let cleanUrl = url.split('&list=')[0].split('?list=')[0];
 
-      // Use yt-dlp to get best audio stream URL
+      // Check cache first
+      const cacheKey = `stream_url:${cleanUrl}`;
+      const cachedUrl = cache.get(cacheKey);
+
+      if (cachedUrl) {
+        logger.info(`[YouTube] Using cached stream URL (skipping yt-dlp extraction)`);
+        return cachedUrl;
+      }
+
+      // Cache miss - extract using yt-dlp
+      logger.info(`[YouTube] Cache miss - extracting stream URL with yt-dlp...`);
       const { execSync } = require('child_process');
       const result = execSync(
         `yt-dlp -f bestaudio --get-url "${cleanUrl}"`,
@@ -86,7 +98,10 @@ class YouTubeService {
         throw new Error('Invalid stream URL received');
       }
 
-      logger.info(`[YouTube] Stream URL obtained successfully`);
+      // Cache the stream URL for 5 minutes
+      cache.set(cacheKey, streamUrl, 5 * 60 * 1000);
+
+      logger.info(`[YouTube] Stream URL obtained and cached successfully`);
       return streamUrl;
     } catch (error) {
       logger.error('[YouTube] Error getting stream URL:', error.message);
