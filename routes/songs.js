@@ -33,6 +33,7 @@ router.get('/queue', ipUserMiddleware, async (req, res) => {
       },
       group: ['Song.id', 'addedBy.id'],
       order: [
+        ['starred', 'DESC'],  // Starred songs first
         [sequelize.literal('vote_count'), 'DESC'],
         ['added_at', 'ASC']
       ]
@@ -361,7 +362,7 @@ router.post('/:id/reparse', isAdmin, async (req, res) => {
   }
 });
 
-// Star/unstar a song (admin only)
+// Star/unstar a song (admin only) - Only 1 song can be starred at a time
 router.post('/:id/star', isAdmin, async (req, res) => {
   try {
     const song = await Song.findByPk(req.params.id);
@@ -374,8 +375,21 @@ router.post('/:id/star', isAdmin, async (req, res) => {
     }
 
     // Toggle starred status
-    song.starred = !song.starred;
-    await song.save();
+    const newStarredStatus = !song.starred;
+
+    if (newStarredStatus) {
+      // Star this song - unstar all others in queue first
+      await Song.update(
+        { starred: false },
+        { where: { played: false, starred: true } }
+      );
+      song.starred = true;
+      await song.save();
+    } else {
+      // Unstar this song
+      song.starred = false;
+      await song.save();
+    }
 
     logger.info(`[Songs] Song ${song.id} starred status: ${song.starred}`);
 
