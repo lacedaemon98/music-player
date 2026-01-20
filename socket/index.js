@@ -133,9 +133,20 @@ function setupSocket(io) {
     });
 
     // Handle request for playback state (for resume on reconnect)
-    socket.on('get_playback_state', () => {
+    socket.on('get_playback_state', async () => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
+
+        // Check database to ensure there's actually a song playing
+        const PlaybackState = require('../models').PlaybackState;
+        const dbState = await PlaybackState.getCurrent();
+
+        // If database says not playing or no song, don't resume
+        if (!dbState.is_playing || !dbState.current_song_id) {
+          logger.info(`[Socket.io] Database shows no active playback, not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
 
         // If we have recent lastPlayedSongData (within last 10 minutes), send it
         // This allows admin to resume without re-extracting stream URL
@@ -267,10 +278,9 @@ function setupSocket(io) {
         const disconnectedUserId = activeAdminUserId;
         logger.info(`[Socket.io] Active admin session ended (user: ${activeAdminUserId})`);
 
-        // Clear currently playing song and last played data
-        currentlyPlayingSong = null;
-        lastPlayedSongData = null;
-        logger.info(`[Socket.io] Cleared currently playing song due to admin disconnect`);
+        // DON'T clear currentlyPlayingSong and lastPlayedSongData here
+        // because admin might be refreshing (reconnecting)
+        // Only clear these when explicitly stopped or song ended
 
         // Clear socket but KEEP user ID for a short time (to handle refresh)
         activeAdminSocket = null;
@@ -282,6 +292,12 @@ function setupSocket(io) {
             logger.info(`[Socket.io] Clearing admin user ID after timeout (user: ${disconnectedUserId})`);
             activeAdminUserId = null;
             activeAdminSessionId = null;
+
+            // Also clear playback data if admin hasn't reconnected after 5 seconds
+            // (means they actually closed the tab, not just refreshed)
+            currentlyPlayingSong = null;
+            lastPlayedSongData = null;
+            logger.info(`[Socket.io] Cleared playback data - admin did not reconnect`);
           }
         }, 5000);
       }
