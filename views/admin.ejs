@@ -120,6 +120,49 @@
       transform: translateY(-2px);
     }
 
+    /* Starred song styling - trang trọng */
+    .queue-item.starred-song {
+      background: linear-gradient(135deg, #fffbf0 0%, #fff9e6 100%);
+      border: 2px solid #ffd700;
+      box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3), 0 0 30px rgba(255, 215, 0, 0.15);
+      position: relative;
+      animation: starredGlow 3s ease-in-out infinite;
+    }
+
+    .queue-item.starred-song::before {
+      content: '⭐';
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      font-size: 1.5rem;
+      animation: starPulse 2s ease-in-out infinite;
+      filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.5));
+    }
+
+    .queue-item.starred-song:hover {
+      box-shadow: 0 6px 24px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2);
+      transform: translateY(-3px);
+      border-color: #ffed4e;
+    }
+
+    @keyframes starredGlow {
+      0%, 100% {
+        box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3), 0 0 30px rgba(255, 215, 0, 0.15);
+      }
+      50% {
+        box-shadow: 0 6px 25px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.25);
+      }
+    }
+
+    @keyframes starPulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.2);
+      }
+    }
+
     .queue-item-thumbnail {
       width: 120px;
       height: 90px;
@@ -2339,7 +2382,7 @@
       }
 
       const queueHTML = data.songs.map(s => `
-        <div class="queue-item">
+        <div class="queue-item ${s.starred ? 'starred-song' : ''}">
           <img src="${s.thumbnail_url || '/images/placeholder.jpg'}" class="queue-item-thumbnail" alt="${s.title}">
           <div class="queue-item-content">
             <div class="queue-item-title" title="${s.title}">${s.title}</div>
