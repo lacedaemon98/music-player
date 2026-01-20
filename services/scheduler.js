@@ -11,6 +11,8 @@ class SchedulerService {
     this.preDownloadJobs = new Map(); // Map of schedule_id -> Pre-download Job
     this.scheduledSongs = new Map(); // Map of schedule_id -> { song, streamUrl, announcementData }
     this.io = null; // Socket.io instance
+    this.remainingSongsInSchedule = 0; // Track remaining songs in current schedule execution
+    this.nextSongPrepared = null; // Pre-fetched next song in schedule: { song, streamUrl, announcementData, isOffline }
   }
 
   /**
@@ -421,33 +423,34 @@ class SchedulerService {
       // Check if we have pre-downloaded song
       const preparedData = this.scheduledSongs.get(scheduleId);
 
+      // Set remaining songs counter (excluding first song)
+      this.remainingSongsInSchedule = Math.max(0, songCount - 1);
+      logger.info(`[Scheduler] Starting schedule with ${songCount} songs (${this.remainingSongsInSchedule} remaining after first)`);
+
       if (preparedData) {
         logger.info('[Scheduler] Using pre-downloaded song data');
 
         // Play first song using cached data
-        await this.playPreparedSong(preparedData, volume, songCount > 1);
+        // auto_next = true if there are more songs to play
+        await this.playPreparedSong(preparedData, volume, this.remainingSongsInSchedule > 0);
 
         // Clear cache after use
         this.scheduledSongs.delete(scheduleId);
-
-        // Play remaining songs if requested
-        for (let i = 1; i < songCount; i++) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const autoNext = (i < songCount - 1);
-          await this.playTopSong(volume, autoNext);
-        }
       } else {
         // Fallback to old behavior if no pre-download
         logger.warn('[Scheduler] No pre-downloaded data, using fallback');
 
-        for (let i = 0; i < songCount; i++) {
-          const autoNext = (i < songCount - 1);
-          await this.playTopSong(volume, autoNext);
+        // Play first song with auto_next = true if there are more songs
+        await this.playTopSong(volume, this.remainingSongsInSchedule > 0);
+      }
 
-          if (i < songCount - 1) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        }
+      // Start pre-fetching next song if there are more songs to play
+      if (this.remainingSongsInSchedule > 0) {
+        logger.info('[Scheduler] Starting pre-fetch for second song in schedule...');
+        // Don't await - run in background while first song is playing
+        this.prepareNextSongInSchedule(volume).catch(err => {
+          logger.error('[Scheduler] Background pre-fetch failed:', err);
+        });
       }
 
       // Update next_run to the next occurrence after execution completes
@@ -746,6 +749,228 @@ class SchedulerService {
     }
 
     return lockedSongs;
+  }
+
+  /**
+   * Check if there are remaining songs in current schedule execution
+   * If yes, decrement counter and return true
+   * @returns {boolean} - true if should play next song in schedule, false otherwise
+   */
+  shouldPlayNextInSchedule() {
+    if (this.remainingSongsInSchedule > 0) {
+      this.remainingSongsInSchedule--;
+      logger.info(`[Scheduler] Playing next song in schedule (${this.remainingSongsInSchedule} remaining after this)`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get remaining songs count in current schedule
+   * @returns {number} - remaining songs count
+   */
+  getRemainingScheduleSongs() {
+    return this.remainingSongsInSchedule;
+  }
+
+  /**
+   * Reset remaining songs counter (called when admin manually plays or stops)
+   */
+  resetScheduleSongsCounter() {
+    if (this.remainingSongsInSchedule > 0) {
+      logger.info(`[Scheduler] Resetting schedule counter (was ${this.remainingSongsInSchedule})`);
+      this.remainingSongsInSchedule = 0;
+    }
+    // Clear pre-fetched song
+    this.nextSongPrepared = null;
+  }
+
+  /**
+   * Pre-fetch next song in schedule while current song is playing
+   * Called when first song starts playing and there are more songs to come
+   */
+  async prepareNextSongInSchedule(volume) {
+    try {
+      if (this.remainingSongsInSchedule === 0) {
+        logger.info('[Scheduler] No remaining songs, skipping prepare');
+        return;
+      }
+
+      logger.info('[Scheduler] Pre-fetching next song in schedule...');
+
+      // Get top voted song
+      const topSong = await Song.getTopVoted();
+
+      if (!topSong) {
+        logger.warn('[Scheduler] No song in queue for pre-fetch, will use offline music');
+        this.nextSongPrepared = { isOffline: true, song: null };
+        return;
+      }
+
+      logger.info(`[Scheduler] Pre-fetching: ${topSong.title} - ${topSong.artist}`);
+
+      // Generate announcement if dedication exists
+      let announcementData = null;
+      if (topSong.dedication_message) {
+        try {
+          const djService = require('./dj');
+          announcementData = await djService.generateAnnouncement(topSong);
+          logger.info('[Scheduler] Pre-fetched announcement');
+        } catch (error) {
+          logger.error('[Scheduler] Announcement pre-fetch failed:', error);
+        }
+      }
+
+      // Pre-extract stream URL
+      let streamUrl = `/api/playback/stream/${topSong.id}`;
+      if (topSong.youtube_url) {
+        try {
+          const youtubeService = require('./youtube');
+          streamUrl = await youtubeService.getStreamUrl(topSong.youtube_url);
+          logger.info('[Scheduler] Pre-extracted stream URL');
+        } catch (error) {
+          logger.error('[Scheduler] Stream URL pre-fetch failed, will use proxy:', error.message);
+        }
+      }
+
+      // Store prepared data
+      this.nextSongPrepared = {
+        song: topSong,
+        streamUrl: streamUrl,
+        announcementData: announcementData,
+        isOffline: false
+      };
+
+      logger.info('[Scheduler] Next song pre-fetch completed successfully');
+    } catch (error) {
+      logger.error('[Scheduler] Error pre-fetching next song:', error);
+      this.nextSongPrepared = null;
+    }
+  }
+
+  /**
+   * Get prepared next song (if available)
+   * Returns null if not prepared
+   */
+  getNextSongPrepared() {
+    return this.nextSongPrepared;
+  }
+
+  /**
+   * Clear prepared next song
+   */
+  clearNextSongPrepared() {
+    this.nextSongPrepared = null;
+  }
+
+  /**
+   * Play next song in schedule using pre-fetched data if available
+   * Falls back to offline music if song failed to download
+   */
+  async playNextSongInSchedule(volume, autoNext = true) {
+    try {
+      // Check if we have pre-fetched song
+      const preparedData = this.nextSongPrepared;
+      this.nextSongPrepared = null; // Clear after use
+
+      if (preparedData) {
+        logger.info('[Scheduler] Using pre-fetched song data');
+
+        // If pre-fetch failed (offline fallback)
+        if (preparedData.isOffline || !preparedData.song) {
+          logger.warn('[Scheduler] Pre-fetch failed, playing offline music');
+
+          const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
+
+          if (!offlineMusic) {
+            logger.error('[Scheduler] No offline music available');
+            return;
+          }
+
+          const streamUrl = `/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`;
+
+          if (this.io) {
+            this.io.emit('play_song', {
+              song: {
+                id: null,
+                title: offlineMusic.title,
+                artist: 'Offline Music',
+                thumbnail_url: '/images/offline-music.png'
+              },
+              stream_url: streamUrl,
+              volume: volume,
+              auto_next: autoNext
+            });
+          }
+
+          return;
+        }
+
+        // Play pre-fetched song
+        const { song, streamUrl, announcementData } = preparedData;
+
+        // Mark song as played
+        await song.markAsPlayed();
+
+        logger.info(`[Scheduler] Playing pre-fetched song: ${song.title}`);
+
+        // Broadcast play event
+        if (this.io) {
+          if (announcementData) {
+            const payload = {
+              song: song.toJSON ? song.toJSON() : song,
+              announcement_text: announcementData.text,
+              stream_url: streamUrl,
+              volume: volume,
+              auto_next: autoNext
+            };
+
+            if (announcementData.audioPath) {
+              const path = require('path');
+              const filename = path.basename(announcementData.audioPath);
+              payload.announcement_audio_url = `/api/playback/tts/audio/${filename}`;
+            }
+
+            this.io.emit('play_announcement', payload);
+          } else {
+            this.io.emit('play_song', {
+              song: song.toJSON ? song.toJSON() : song,
+              stream_url: streamUrl,
+              volume: volume,
+              auto_next: autoNext
+            });
+          }
+
+          this.io.emit('queue_updated');
+          this.io.emit('recently_played_updated');
+        }
+
+        // Start pre-fetching next song if there are more songs
+        if (this.remainingSongsInSchedule > 0) {
+          logger.info('[Scheduler] Starting pre-fetch for next song...');
+          // Don't await - run in background
+          this.prepareNextSongInSchedule(volume).catch(err => {
+            logger.error('[Scheduler] Background pre-fetch failed:', err);
+          });
+        }
+
+        return;
+      }
+
+      // No pre-fetched data - fallback to normal flow
+      logger.warn('[Scheduler] No pre-fetched data, using normal flow');
+      await this.playTopSong(volume, autoNext);
+
+      // Start pre-fetching next song if there are more songs
+      if (this.remainingSongsInSchedule > 0) {
+        logger.info('[Scheduler] Starting pre-fetch for next song...');
+        this.prepareNextSongInSchedule(volume).catch(err => {
+          logger.error('[Scheduler] Background pre-fetch failed:', err);
+        });
+      }
+    } catch (error) {
+      logger.error('[Scheduler] Error playing next song in schedule:', error);
+    }
   }
 }
 

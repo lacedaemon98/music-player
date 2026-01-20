@@ -11,13 +11,16 @@ const { getCurrentSong } = require('../socket');
 router.get('/status', async (req, res) => {
   try {
     const playbackState = await PlaybackState.getCurrent();
+    const schedulerService = require('../services/scheduler');
 
     const response = {
       current_song_id: playbackState.current_song_id,
       is_playing: playbackState.is_playing,
       position: playbackState.position,
       volume: playbackState.volume,
-      song: null
+      song: null,
+      remaining_schedule_songs: schedulerService.getRemainingScheduleSongs(),
+      next_song_prepared: null
     };
 
     if (playbackState.current_song_id) {
@@ -30,6 +33,23 @@ router.get('/status', async (req, res) => {
           thumbnail_url: song.thumbnail_url
         };
       }
+    }
+
+    // Get pre-fetched next song info if available
+    const nextSongPrepared = schedulerService.getNextSongPrepared();
+    if (nextSongPrepared && nextSongPrepared.song) {
+      response.next_song_prepared = {
+        title: nextSongPrepared.song.title,
+        artist: nextSongPrepared.song.artist,
+        thumbnail_url: nextSongPrepared.song.thumbnail_url,
+        has_announcement: !!nextSongPrepared.announcementData
+      };
+    } else if (nextSongPrepared && nextSongPrepared.isOffline) {
+      response.next_song_prepared = {
+        title: 'Nhạc offline',
+        artist: 'Offline Music',
+        is_offline: true
+      };
     }
 
     res.json(response);
@@ -117,6 +137,10 @@ router.post('/next', isAdmin, async (req, res) => {
     const playbackState = await PlaybackState.getCurrent();
     const io = req.app.get('io');
     const schedulerService = require('../services/scheduler');
+
+    // Reset schedule counter when admin manually plays next
+    // (to stop any ongoing multi-song schedule)
+    schedulerService.resetScheduleSongsCounter();
 
     // Check if there's a locked song for upcoming schedule
     const lockedSongs = await schedulerService.getLockedSongs();
@@ -417,6 +441,37 @@ router.post('/resume', isAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi resume rồi bạn ơi'
+    });
+  }
+});
+
+// Stop playback completely (admin only)
+router.post('/stop', isAdmin, async (req, res) => {
+  try {
+    const playbackState = await PlaybackState.getCurrent();
+    playbackState.current_song_id = null;
+    playbackState.is_playing = false;
+    playbackState.position = 0;
+    await playbackState.save();
+
+    // Reset schedule counter (stop any ongoing schedule)
+    const schedulerService = require('../services/scheduler');
+    schedulerService.resetScheduleSongsCounter();
+
+    logger.info('[Playback] Playback stopped by admin');
+
+    // Broadcast stop event
+    const io = req.app.get('io');
+    io.emit('playback_stopped');
+
+    res.json({
+      success: true
+    });
+  } catch (error) {
+    logger.error('[Playback] Error stopping:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi stop rồi bạn ơi'
     });
   }
 });

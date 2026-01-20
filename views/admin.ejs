@@ -906,6 +906,9 @@
             <button class="player-button" id="btnPlayPause" onclick="togglePlayPause()" disabled>
               <i class="bi bi-play-fill"></i>
             </button>
+            <button class="player-button" id="btnStop" onclick="stopPlayback()" style="background: #dc3545;">
+              <i class="bi bi-stop-fill"></i> Stop
+            </button>
             <button class="player-button" id="btnPlayNext" onclick="playNext()">
               <i class="bi bi-skip-forward-fill"></i> Bài tiếp theo
             </button>
@@ -2199,9 +2202,6 @@
 
           btnPlayPause.disabled = true;
 
-          // Notify all clients that song has ended
-          socket.emit('song_ended_notify');
-
           // Clear next song locked display (song has finished playing)
           if (nextSongLocked) {
             console.log('[Admin] Clearing next song locked display');
@@ -2209,10 +2209,17 @@
             loadQueue(); // Reload queue to remove locked song display
           }
 
-          // Only auto-play next if server allows it
-          if (data.auto_next !== false) {
-            console.log('[Admin] Auto-playing next song...');
-            playNext();
+          // Notify server that song ended
+          // Server will handle auto-next logic (schedule or manual)
+          console.log('[Admin] Notifying server that song ended, auto_next:', data.auto_next);
+          socket.emit('song_ended_notify');
+
+          // Only manually trigger playNext if auto_next is explicitly true
+          // (for backward compatibility with manual next button)
+          if (data.auto_next === true) {
+            console.log('[Admin] Auto-next enabled, waiting for server to trigger next song...');
+            // Server will trigger next song automatically
+            // or client will receive song_ended event to clear UI
           } else {
             console.log('[Admin] Auto-next disabled, stopping playback');
 
@@ -2247,6 +2254,45 @@
       console.log('[Admin] Next song locked:', data);
       nextSongLocked = data;
       loadQueue(); // Reload queue to show locked song
+    });
+
+    // Handle playback stopped event
+    socket.on('playback_stopped', () => {
+      console.log('[Admin] Received playback_stopped event');
+
+      const audio = document.getElementById('audioPlayer');
+      const btnPlayPause = document.getElementById('btnPlayPause');
+
+      // Stop any announcement audio
+      if (currentAnnouncementAudio) {
+        currentAnnouncementAudio.pause();
+        currentAnnouncementAudio = null;
+      }
+
+      // Stop audio playback
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = '';
+
+      // Reset UI
+      btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+      btnPlayPause.disabled = true;
+
+      // Clear now playing display
+      const nowPlaying = document.getElementById('nowPlaying');
+      nowPlaying.innerHTML = `
+        <div id="playerInitPrompt">
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-music-note-beamed" style="font-size: 3rem; opacity: 0.3;"></i>
+            <div class="mt-2">Chưa có bài nào đang phát</div>
+          </div>
+        </div>
+      `;
+
+      // Reset progress bar
+      document.getElementById('progressBarFill').style.width = '0%';
+      document.getElementById('currentTime').textContent = '0:00';
+      document.getElementById('duration').textContent = '0:00';
     });
 
     // Load locked song on page refresh
@@ -3274,20 +3320,35 @@
         return;
       }
 
-      // Check if there's a locked song for upcoming schedule
-      if (nextSongLocked && nextSongLocked.schedule_time) {
-        const scheduleTime = nextSongLocked.schedule_time;
-        const songTitle = nextSongLocked.song ? nextSongLocked.song.title : 'nhạc offline';
+      // Always confirm before playing next
+      try {
+        const statusRes = await fetch('/api/playback/status');
+        const statusData = await statusRes.json();
 
-        const confirmed = confirm(
-          `⚠️ Phát bây giờ sẽ HỦY lịch phát lúc ${scheduleTime}\n\n` +
-          `Bài đã chốt: ${songTitle}\n\n` +
-          `Bạn có chắc muốn phát ngay bây giờ không?`
-        );
+        let confirmMessage = '';
 
-        if (!confirmed) {
-          return; // User cancelled
+        if (statusData.remaining_schedule_songs > 0) {
+          confirmMessage =
+            `⚠️ Đang trong lịch phát tự động (còn ${statusData.remaining_schedule_songs} bài)\n\n` +
+            `Phát Next sẽ HỦY lịch tự động và chỉ phát 1 bài tiếp theo.\n\n` +
+            `Bạn có chắc muốn hủy lịch và phát Next không?`;
+        } else if (nextSongLocked && nextSongLocked.schedule_time) {
+          const scheduleTime = nextSongLocked.schedule_time;
+          const songTitle = nextSongLocked.song ? nextSongLocked.song.title : 'nhạc offline';
+          confirmMessage =
+            `⚠️ Phát bây giờ sẽ HỦY lịch phát lúc ${scheduleTime}\n\n` +
+            `Bài đã chốt: ${songTitle}\n\n` +
+            `Bạn có chắc muốn phát ngay bây giờ không?`;
+        } else {
+          confirmMessage =
+            `Phát bài tiếp theo?\n\n` +
+            `Sẽ chỉ phát 1 bài (không tự động phát tiếp).`;
         }
+
+        const confirmed = confirm(confirmMessage);
+        if (!confirmed) return;
+      } catch (error) {
+        console.error('[Admin] Error checking schedule status:', error);
       }
 
       await fetch('/api/playback/next', { method: 'POST' });
@@ -3303,6 +3364,67 @@
       } else {
         audio.pause();
         btn.innerHTML = '<i class="bi bi-play-fill"></i>';
+      }
+    }
+
+    async function stopPlayback() {
+      if (!isActiveTab || !socket.connected) {
+        alert('Tab này không còn hoạt động.');
+        return;
+      }
+
+      try {
+        // Always confirm before stopping
+        const statusRes = await fetch('/api/playback/status');
+        const statusData = await statusRes.json();
+
+        let confirmMessage = '';
+        if (statusData.remaining_schedule_songs > 0) {
+          confirmMessage =
+            `⚠️ Đang trong lịch phát tự động (còn ${statusData.remaining_schedule_songs} bài)\n\n` +
+            `Stop sẽ DỪNG HẲNG và HỦY lịch tự động.\n\n` +
+            `Bạn có chắc muốn dừng không?`;
+        } else {
+          confirmMessage = `Dừng phát nhạc?\n\nSẽ dừng hẳn bài hiện tại.`;
+        }
+
+        const confirmed = confirm(confirmMessage);
+        if (!confirmed) return;
+
+        const audio = document.getElementById('audioPlayer');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = '';
+
+        btnPlayPause.innerHTML = '<i class="bi bi-play-fill"></i>';
+        btnPlayPause.disabled = true;
+
+        document.getElementById('nowPlaying').innerHTML = `
+          <div id="playerInitPrompt">
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-music-note-beamed" style="font-size: 3rem; opacity: 0.3;"></i>
+              <div class="mt-2">Chưa có bài nào đang phát</div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('progressBarFill').style.width = '0%';
+        document.getElementById('currentTime').textContent = '0:00';
+        document.getElementById('duration').textContent = '0:00';
+
+        const response = await fetch('/api/playback/stop', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+          console.log('[Admin] Playback stopped successfully');
+        } else {
+          console.error('[Admin] Stop failed:', data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error stopping playback:', error);
+        alert('Lỗi khi stop nhạc');
       }
     }
 

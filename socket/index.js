@@ -149,9 +149,31 @@ function setupSocket(io) {
     });
 
     // Handle song ended notification from admin
-    socket.on('song_ended_notify', () => {
+    socket.on('song_ended_notify', async () => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Song ended, broadcasting to all clients`);
+
+        // Check if there are remaining songs in schedule
+        const schedulerService = require('../services/scheduler');
+        const shouldPlayNext = schedulerService.shouldPlayNextInSchedule();
+
+        if (shouldPlayNext) {
+          logger.info(`[Socket.io] Auto-playing next song in schedule (${schedulerService.getRemainingScheduleSongs()} remaining after this)`);
+
+          // Trigger next song in schedule
+          const PlaybackState = require('../models').PlaybackState;
+          const playbackStateRecord = await PlaybackState.getCurrent();
+          const volume = playbackStateRecord.volume;
+
+          // Play next song using pre-fetched data if available
+          await schedulerService.playNextSongInSchedule(volume, schedulerService.getRemainingScheduleSongs() > 0);
+
+          return; // Don't clear state, next song will play
+        }
+
+        // No more songs in schedule - clear state
+        logger.info(`[Socket.io] No more songs in schedule, clearing playback state`);
+
         // Clear currently playing song
         currentlyPlayingSong = null;
         // Clear playback state
