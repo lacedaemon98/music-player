@@ -399,14 +399,14 @@ class SchedulerService {
         return;
       }
 
-      // Check if schedule was already executed recently (within last 10 minutes)
+      // Check if schedule was already executed recently (within last 5 minutes)
       // This happens when admin triggers "Next" with a locked song
       if (schedule.last_run) {
         const now = new Date();
         const lastRun = new Date(schedule.last_run);
         const minutesSinceLastRun = (now - lastRun) / (1000 * 60);
 
-        if (minutesSinceLastRun < 10) {
+        if (minutesSinceLastRun < 5) {
           logger.info(`[Scheduler] Schedule ${scheduleId} was already executed ${minutesSinceLastRun.toFixed(1)} minutes ago (admin early trigger). Skipping.`);
 
           // Still update next_run for future schedules

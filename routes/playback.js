@@ -139,10 +139,6 @@ router.post('/next', isAdmin, async (req, res) => {
     const io = req.app.get('io');
     const schedulerService = require('../services/scheduler');
 
-    // Reset schedule counter when admin manually plays next
-    // (to stop any ongoing multi-song schedule)
-    schedulerService.resetScheduleSongsCounter();
-
     // Check if there's a locked song for upcoming schedule
     const lockedSongs = await schedulerService.getLockedSongs();
 
@@ -193,14 +189,9 @@ router.post('/next', isAdmin, async (req, res) => {
           // Clear cache
           schedulerService.scheduledSongs.delete(scheduleId);
 
-          // Mark schedule as executed (to prevent it from running again at scheduled time)
-          const Schedule = require('../models').Schedule;
-          const schedule = await Schedule.findByPk(scheduleId);
-          if (schedule) {
-            schedule.last_run = new Date();
-            await schedule.save();
-            logger.info(`[Playback] Marked schedule ${scheduleId} as executed (early trigger by admin - offline music)`);
-          }
+          // DON'T mark schedule.last_run when admin manually triggers
+          // Let the schedule run automatically at scheduled time
+          logger.info(`[Playback] Played offline music early (schedule ${scheduleId} will still run at scheduled time)`);
 
           return res.json({
             success: true,
@@ -237,14 +228,9 @@ router.post('/next', isAdmin, async (req, res) => {
         // Clear cache after playing
         schedulerService.scheduledSongs.delete(scheduleId);
 
-        // Mark schedule as executed (to prevent it from running again at scheduled time)
-        const Schedule = require('../models').Schedule;
-        const schedule = await Schedule.findByPk(scheduleId);
-        if (schedule) {
-          schedule.last_run = new Date();
-          await schedule.save();
-          logger.info(`[Playback] Marked schedule ${scheduleId} as executed (early trigger by admin)`);
-        }
+        // DON'T mark schedule.last_run when admin manually triggers
+        // Let the schedule run automatically at scheduled time
+        logger.info(`[Playback] Played locked song early (schedule ${scheduleId} will still run at scheduled time)`);
 
         logger.info(`[Playback] Played locked song early: ${song.title}`);
 
@@ -258,6 +244,10 @@ router.post('/next', isAdmin, async (req, res) => {
     }
 
     // No locked song - proceed with normal top voted song
+    // Reset schedule counter to stop any ongoing multi-song schedule
+    schedulerService.resetScheduleSongsCounter();
+    logger.info('[Playback] No locked song, resetting schedule counter');
+
     const topSong = await Song.getTopVoted();
 
     // If no songs in queue, try to play offline music
