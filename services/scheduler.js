@@ -787,11 +787,13 @@ class SchedulerService {
    * @returns {boolean} - true if should play next song in schedule, false otherwise
    */
   shouldPlayNextInSchedule() {
+    logger.info(`[Scheduler] shouldPlayNextInSchedule called - current counter: ${this.remainingSongsInSchedule}`);
     if (this.remainingSongsInSchedule > 0) {
       this.remainingSongsInSchedule--;
-      logger.info(`[Scheduler] Playing next song in schedule (${this.remainingSongsInSchedule} remaining after this)`);
+      logger.info(`[Scheduler] ✓ YES - Playing next song in schedule (${this.remainingSongsInSchedule} remaining after this)`);
       return true;
     }
+    logger.info(`[Scheduler] ✗ NO - No more songs in schedule (counter is ${this.remainingSongsInSchedule})`);
     return false;
   }
 
