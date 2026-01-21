@@ -1740,14 +1740,15 @@
         // Start position updates
         startPositionUpdates('music', state.song, null, null, state.stream_url, state.auto_next, state.volume);
 
-        // Emit song_started to sync with public
-        if (isActiveTab) {
-          socket.emit('song_started', {
-            song: state.song,
-            stream_url: state.stream_url,
-            volume: state.volume
-          });
-        }
+        // Always emit song_started (don't check isActiveTab) to update server cache
+        socket.emit('song_started', {
+          song: state.song,
+          stream_url: state.stream_url,
+          announcement_text: state.announcement_text || null,
+          announcement_url: state.announcement_url || null,
+          volume: state.volume,
+          auto_next: state.auto_next
+        });
 
         // Setup onended handler
         audio.onended = () => {
@@ -2065,13 +2066,16 @@
           // Start position updates
           startPositionUpdates('music', data.song, data.announcement_text, null, data.stream_url, data.auto_next, data.volume);
 
-          if (isActiveTab) {
-            socket.emit('song_started', {
-              song: data.song,
-              stream_url: data.stream_url,
-              volume: data.volume
-            });
-          }
+          // Always emit song_started (don't check isActiveTab) to update server cache immediately
+          // This prevents resuming old song when user refreshes right after new song starts
+          socket.emit('song_started', {
+            song: data.song,
+            stream_url: data.stream_url,
+            announcement_text: data.announcement_text,
+            announcement_url: data.announcement_url,
+            volume: data.volume,
+            auto_next: data.auto_next
+          });
 
           audio.onended = () => {
             console.log('[Admin] Song ended');
@@ -2178,14 +2182,15 @@
           // Start position updates for resume functionality
           startPositionUpdates('music', data.song, null, null, data.stream_url, data.auto_next, data.volume);
 
-          // Emit song_started to server (so public page can get current song)
-          if (isActiveTab) {
-            socket.emit('song_started', {
-              song: data.song,
-              stream_url: data.stream_url,
-              volume: data.volume
-            });
-          }
+          // Always emit song_started (don't check isActiveTab) to update server cache immediately
+          socket.emit('song_started', {
+            song: data.song,
+            stream_url: data.stream_url,
+            announcement_text: null,
+            announcement_url: null,
+            volume: data.volume,
+            auto_next: data.auto_next
+          });
         }).catch(err => {
           console.error('[Admin] Play error:', err);
           console.error('[Admin] Error name:', err.name);
