@@ -53,7 +53,7 @@ router.get('/next', async (req, res) => {
     }
 
     const nextRun = new Date(nextSchedule.next_run);
-    const lockTime = new Date(nextRun.getTime() - 5 * 60 * 1000); // 5 minutes before
+    const lockTime = new Date(nextRun.getTime() - 3 * 60 * 1000); // 3 minutes before
 
     // Determine if schedule is today, tomorrow, or another day
     const today = new Date();

@@ -99,7 +99,7 @@ class SchedulerService {
 
       this.jobs.set(scheduleRecord.id, job);
 
-      // Create pre-download job (5 minutes before main schedule)
+      // Create pre-download job (3 minutes before main schedule)
       const preDownloadJob = this.createPreDownloadJob(scheduleRecord);
       if (preDownloadJob) {
         this.preDownloadJobs.set(scheduleRecord.id, preDownloadJob);
@@ -122,14 +122,14 @@ class SchedulerService {
   }
 
   /**
-   * Create pre-download job (5 minutes before main schedule)
+   * Create pre-download job (3 minutes before main schedule)
    */
   createPreDownloadJob(scheduleRecord) {
     try {
-      // Parse cron expression to calculate 5 minutes earlier
+      // Parse cron expression to calculate 3 minutes earlier
       const cronParts = scheduleRecord.cron_expression.split(' ');
 
-      // For simplicity, if it's a simple cron (minute hour * * *), subtract 5 minutes
+      // For simplicity, if it's a simple cron (minute hour * * *), subtract 3 minutes
       // Otherwise, use a RecurrenceRule
       const Recurrence = schedule.RecurrenceRule;
       const rule = new Recurrence();
@@ -144,9 +144,9 @@ class SchedulerService {
           rule.hour = parseInt(hour);
         }
 
-        // Set minute (5 minutes before)
+        // Set minute (3 minutes before)
         if (minute !== '*') {
-          let preDownloadMinute = parseInt(minute) - 5;
+          let preDownloadMinute = parseInt(minute) - 3;
           if (preDownloadMinute < 0) {
             preDownloadMinute += 60;
             if (rule.hour !== null) {
@@ -213,7 +213,7 @@ class SchedulerService {
   }
 
   /**
-   * Prepare scheduled song (5 minutes before playback)
+   * Prepare scheduled song (3 minutes before playback)
    * Lock top voted song, pre-download stream, generate announcement
    */
   async prepareScheduledSong(scheduleId, volume = 70, songCount = 1) {
