@@ -452,11 +452,7 @@ router.post('/stop', isAdmin, async (req, res) => {
   try {
     logger.info('[Playback] ===== STOP REQUESTED =====');
 
-    // FIRST: Clear cached playback data (prevent resume)
-    clearPlaybackData();
-    logger.info('[Playback] Cleared playback cache');
-
-    // SECOND: Update database (source of truth)
+    // FIRST: Update database (source of truth) - DB is checked first in resume logic
     const playbackState = await PlaybackState.getCurrent();
     playbackState.current_song_id = null;
     playbackState.is_playing = false;
@@ -464,12 +460,16 @@ router.post('/stop', isAdmin, async (req, res) => {
     await playbackState.save();
     logger.info('[Playback] Updated database - is_playing: false, song_id: null');
 
+    // SECOND: Clear cached playback data (prevent resume from cache)
+    clearPlaybackData();
+    logger.info('[Playback] Cleared playback cache (lastPlayedSongData, currentlyPlayingSong)');
+
     // THIRD: Reset schedule counter (stop any ongoing schedule)
     const schedulerService = require('../services/scheduler');
     schedulerService.resetScheduleSongsCounter();
     logger.info('[Playback] Reset schedule counter');
 
-    // FOURTH: Broadcast stop event
+    // FOURTH: Broadcast stop event to all clients (admin and public)
     const io = req.app.get('io');
     io.emit('playback_stopped');
     logger.info('[Playback] Broadcasted playback_stopped event');
