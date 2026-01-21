@@ -1664,13 +1664,16 @@
       // Use provided audio element or default to main player
       const audio = audioElement || document.getElementById('audioPlayer');
 
-      positionUpdateInterval = setInterval(() => {
+      // Function to emit playback state
+      const emitState = () => {
         // For announcement stage, check currentAnnouncementAudio
         const isPlaying = stage === 'announcement'
           ? (currentAnnouncementAudio && !currentAnnouncementAudio.paused)
           : !audio.paused;
 
-        if (isPlaying && isActiveTab) {
+        // Always emit state if playing (don't require isActiveTab)
+        // This ensures state is saved even when user switches tabs before refresh
+        if (isPlaying) {
           const currentPos = stage === 'announcement'
             ? (currentAnnouncementAudio ? Math.floor(currentAnnouncementAudio.currentTime) : 0)
             : Math.floor(audio.currentTime);
@@ -1686,7 +1689,13 @@
             volume: volume
           });
         }
-      }, 2000); // Update every 2 seconds
+      };
+
+      // Emit immediately on start (don't wait for first interval)
+      emitState();
+
+      // Then update every 1 second (reduced from 2s for faster sync on refresh)
+      positionUpdateInterval = setInterval(emitState, 1000);
     }
 
     // Stop position update interval
