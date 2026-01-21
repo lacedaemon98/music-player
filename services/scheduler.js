@@ -261,9 +261,12 @@ class SchedulerService {
 
       logger.info(`[Scheduler] Locked song for schedule: ${topSong.title} - ${topSong.artist}`);
 
-      // IMPORTANT: Mark song as "played" temporarily to remove from queue
-      // (Will be properly marked as played when actually played)
-      await topSong.update({ played: true });
+      // IMPORTANT: Mark song as "played" to remove from queue and show in recently played
+      // Set played_at so it appears in recently played list immediately
+      await topSong.update({
+        played: true,
+        played_at: new Date()
+      });
 
       // Pre-download YouTube stream URL
       let streamUrl = null;
@@ -279,8 +282,11 @@ class SchedulerService {
         logger.error('[Scheduler] YouTube stream pre-download failed:', error.message);
         logger.warn('[Scheduler] Will fallback to offline music at schedule time');
 
-        // Restore song to queue (download failed)
-        await topSong.update({ played: false });
+        // Restore song to queue (download failed) - clear played status
+        await topSong.update({
+          played: false,
+          played_at: null
+        });
 
         // Cache fallback to offline
         this.scheduledSongs.set(scheduleId, {
@@ -305,7 +311,8 @@ class SchedulerService {
             schedule_name: schedule.name,
             schedule_time: scheduleTime
           });
-          this.io.emit('queue_updated'); // Refresh queue
+          this.io.emit('queue_updated'); // Refresh queue (song restored)
+          this.io.emit('recently_played_updated'); // Refresh recently played (song removed)
         }
 
         return;
@@ -359,6 +366,8 @@ class SchedulerService {
 
         // Refresh queue to remove locked song
         this.io.emit('queue_updated');
+        // Refresh recently played to show locked song
+        this.io.emit('recently_played_updated');
 
         logger.info(`[Scheduler] ✓ Broadcasted next_song_locked to all clients`);
       }
