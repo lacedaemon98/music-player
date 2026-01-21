@@ -818,6 +818,13 @@ class SchedulerService {
 
       logger.info(`[Scheduler] Pre-fetching: ${topSong.title} - ${topSong.artist}`);
 
+      // Mark as played to show in locked song display
+      await topSong.update({
+        played: true,
+        played_at: new Date()
+      });
+      logger.info('[Scheduler] Marked song #2 as locked (played)');
+
       // Generate announcement if dedication exists
       let announcementData = null;
       if (topSong.dedication_message) {
@@ -842,13 +849,27 @@ class SchedulerService {
         }
       }
 
-      // Store prepared data
+      // Store prepared data (song already marked as played above)
       this.nextSongPrepared = {
         song: topSong,
         streamUrl: streamUrl,
         announcementData: announcementData,
         isOffline: false
       };
+
+      // Broadcast next_song_locked to show in UI
+      if (this.io) {
+        this.io.emit('next_song_locked', {
+          song: topSong.toJSON(),
+          has_announcement: !!announcementData,
+          schedule_id: null,
+          schedule_name: 'Tiếp theo trong lịch',
+          schedule_time: 'Ngay sau bài hiện tại'
+        });
+        this.io.emit('queue_updated');
+        this.io.emit('recently_played_updated');
+        logger.info('[Scheduler] Broadcasted next_song_locked for song #2');
+      }
 
       logger.info('[Scheduler] Next song pre-fetch completed successfully');
     } catch (error) {
@@ -925,9 +946,7 @@ class SchedulerService {
         // Play pre-fetched song
         const { song, streamUrl, announcementData } = preparedData;
 
-        // Mark song as played
-        await song.markAsPlayed();
-
+        // Song already marked as played during pre-fetch, no need to mark again
         logger.info(`[Scheduler] Playing pre-fetched song: ${song.title}`);
 
         // Broadcast play event

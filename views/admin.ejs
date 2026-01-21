@@ -1688,6 +1688,19 @@
             auto_next: auto_next,
             volume: volume
           });
+
+          // Check if user seeked to near end (99% or more) - trigger end early
+          // This prevents stuck state when user seeks to end but onended doesn't fire
+          if (stage === 'music' && audio.duration && !isNaN(audio.duration)) {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            if (progress >= 99 && audio.currentTime > 0) {
+              console.log('[Admin] Song at 99%, triggering end early');
+              // Trigger onended manually
+              if (audio.onended) {
+                audio.onended();
+              }
+            }
+          }
         }
       };
 
