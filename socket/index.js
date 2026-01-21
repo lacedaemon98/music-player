@@ -23,6 +23,9 @@ let playbackState = {
 // Store last played song data for reconnect (including full play_song event data)
 let lastPlayedSongData = null;
 
+// Track last stop time (to prevent resume after stop)
+let lastStopTime = null;
+
 function setupSocket(io) {
   logger.info('[Socket.io] Initializing Socket.io handlers');
 
@@ -136,6 +139,14 @@ function setupSocket(io) {
     socket.on('get_playback_state', async () => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
+
+        // CRITICAL: Check if stop was recently called
+        // If stopped within last 30 seconds, don't resume (stop in progress)
+        if (lastStopTime && Date.now() - lastStopTime < 30 * 1000) {
+          logger.info(`[Socket.io] Stop was called ${Math.floor((Date.now() - lastStopTime) / 1000)}s ago - not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
 
         // CRITICAL: Check cache FIRST (instant, synchronous check)
         // If cache is cleared (by stop button), don't resume even if DB not updated yet
@@ -351,7 +362,8 @@ function getCurrentSong() {
 function clearPlaybackData() {
   currentlyPlayingSong = null;
   lastPlayedSongData = null;
-  logger.info('[Socket.io] Cleared playback data (stop/reset)');
+  lastStopTime = Date.now(); // Mark stop time to prevent resume
+  logger.info('[Socket.io] Cleared playback data (stop/reset) at:', new Date(lastStopTime).toISOString());
 }
 
 module.exports = setupSocket;
