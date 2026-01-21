@@ -1750,6 +1750,9 @@
           auto_next: state.auto_next
         });
 
+        // Reload locked song (next song in schedule, if any)
+        loadLockedSong();
+
         // Setup onended handler
         audio.onended = () => {
           console.log('[Admin] Song ended (after resume)');
@@ -2077,6 +2080,9 @@
             auto_next: data.auto_next
           });
 
+          // Reload locked song (next song in schedule, if any)
+          loadLockedSong();
+
           audio.onended = () => {
             console.log('[Admin] Song ended');
             btnPlayPause.disabled = true;
@@ -2191,6 +2197,9 @@
             volume: data.volume,
             auto_next: data.auto_next
           });
+
+          // Reload locked song (next song in schedule, if any)
+          loadLockedSong();
         }).catch(err => {
           console.error('[Admin] Play error:', err);
           console.error('[Admin] Error name:', err.name);

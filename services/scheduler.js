@@ -890,16 +890,23 @@ class SchedulerService {
           const streamUrl = `/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`;
 
           if (this.io) {
+            const offlineSongData = {
+              id: null,
+              title: offlineMusic.title,
+              artist: 'Offline Music',
+              thumbnail_url: '/images/offline-music.png'
+            };
+
             this.io.emit('play_song', {
-              song: {
-                id: null,
-                title: offlineMusic.title,
-                artist: 'Offline Music',
-                thumbnail_url: '/images/offline-music.png'
-              },
+              song: offlineSongData,
               stream_url: streamUrl,
               volume: volume,
               auto_next: autoNext
+            });
+
+            // Broadcast to public pages
+            this.io.emit('song_playing_update', {
+              song: offlineSongData
             });
           }
 
@@ -940,6 +947,11 @@ class SchedulerService {
               auto_next: autoNext
             });
           }
+
+          // Broadcast to public pages (song now playing)
+          this.io.emit('song_playing_update', {
+            song: song.toJSON ? song.toJSON() : song
+          });
 
           this.io.emit('queue_updated');
           this.io.emit('recently_played_updated');
