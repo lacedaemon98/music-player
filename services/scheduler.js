@@ -732,6 +732,7 @@ class SchedulerService {
   async getLockedSongs() {
     const lockedSongs = [];
 
+    // Get song #1 from scheduledSongs Map (locked 3 min before schedule)
     for (const [scheduleId, preparedData] of this.scheduledSongs.entries()) {
       const schedule = await Schedule.findByPk(scheduleId);
       if (!schedule) continue;
@@ -747,6 +748,26 @@ class SchedulerService {
         }),
         is_offline: preparedData.isOffline || !preparedData.song,
         download_failed: preparedData.isOffline && preparedData.song === null
+      };
+
+      if (preparedData.song) {
+        lockedSongData.song = preparedData.song.toJSON ? preparedData.song.toJSON() : preparedData.song;
+        lockedSongData.has_announcement = !!preparedData.announcementData;
+      }
+
+      lockedSongs.push(lockedSongData);
+    }
+
+    // Get song #2 from nextSongPrepared (locked while song #1 is playing)
+    if (this.nextSongPrepared) {
+      const preparedData = this.nextSongPrepared;
+
+      const lockedSongData = {
+        schedule_id: null,
+        schedule_name: 'Tiếp theo trong lịch',
+        schedule_time: 'Ngay sau bài hiện tại',
+        is_offline: preparedData.isOffline || !preparedData.song,
+        download_failed: false
       };
 
       if (preparedData.song) {
