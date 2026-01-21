@@ -332,19 +332,20 @@ router.post('/next', isAdmin, async (req, res) => {
       }
     }
 
-    // PRE-EXTRACT YouTube stream URL if there's an announcement (so music is ready when announcement ends)
+    // ALWAYS PRE-EXTRACT YouTube stream URL (avoid delay during playback)
     let streamUrl = `/api/playback/stream/${topSong.id}`;
 
-    if (announcementData && topSong.youtube_url) {
+    if (topSong.youtube_url) {
       try {
-        logger.info('[Playback] Pre-extracting YouTube stream URL during announcement generation...');
+        logger.info('[Playback] Pre-extracting YouTube stream URL for instant playback...');
         const youtubeService = require('../services/youtube');
         const directStreamUrl = await youtubeService.getStreamUrl(topSong.youtube_url);
         streamUrl = directStreamUrl; // Use direct URL instead of proxy
         logger.info('[Playback] Pre-extraction successful, stream ready for instant playback');
       } catch (error) {
         logger.error('[Playback] Pre-extraction failed, will use proxy:', error.message);
-        // Fall back to proxy URL
+        logger.error('[Playback] Pre-extraction error details:', error.stack || 'No stack trace');
+        // Fall back to proxy URL (will try extraction again in /stream endpoint)
       }
     }
 
@@ -544,23 +545,19 @@ router.get('/stream/:song_id', async (req, res) => {
       return res.redirect(cachedUrl);
     }
 
-    // Cache miss - extract using yt-dlp
+    // Cache miss - extract using YouTube service (90 second timeout)
     logger.info(`[Playback] Cache miss - extracting stream URL for: ${song.title}`);
-    const { execSync } = require('child_process');
+    const youtubeService = require('../services/youtube');
 
     try {
-      const result = execSync(
-        `yt-dlp -f bestaudio --get-url "${song.youtube_url}"`,
-        { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
-      );
-
-      const directUrl = result.trim();
+      // Use YouTube service with proper timeout handling (90 seconds)
+      const directUrl = await youtubeService.getStreamUrl(song.youtube_url);
 
       if (!directUrl) {
         throw new Error('Empty stream URL returned');
       }
 
-      // Cache the stream URL for 5 minutes
+      // URL is already cached by YouTube service, but cache again here with same key
       cache.set(cacheKey, directUrl, 5 * 60 * 1000);
 
       logger.info(`[Playback] Got and cached stream URL for: ${song.title}`);
@@ -571,6 +568,7 @@ router.get('/stream/:song_id', async (req, res) => {
     } catch (ytError) {
       // YouTube streaming failed - try to fallback to offline music
       logger.error(`[Playback] YouTube stream failed for ${song.title}:`, ytError.message);
+      logger.error(`[Playback] Error details: ${ytError.stack || 'No stack trace'}`);
       logger.info('[Playback] Attempting to fallback to offline music');
 
       const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
