@@ -212,28 +212,41 @@ function setupSocket(io) {
     // Handle song ended notification from admin
     socket.on('song_ended_notify', async () => {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
-        logger.info(`[Socket.io] Song ended, broadcasting to all clients`);
+        logger.info(`[Socket.io] ===== SONG ENDED NOTIFY =====`);
 
         // Check if there are remaining songs in schedule
         const schedulerService = require('../services/scheduler');
+        const remainingBefore = schedulerService.getRemainingScheduleSongs();
+        logger.info(`[Socket.io] Remaining songs BEFORE check: ${remainingBefore}`);
+
         const shouldPlayNext = schedulerService.shouldPlayNextInSchedule();
+        logger.info(`[Socket.io] shouldPlayNext result: ${shouldPlayNext}`);
 
         if (shouldPlayNext) {
-          logger.info(`[Socket.io] Auto-playing next song in schedule (${schedulerService.getRemainingScheduleSongs()} remaining after this)`);
+          const remainingAfter = schedulerService.getRemainingScheduleSongs();
+          logger.info(`[Socket.io] Remaining songs AFTER decrement: ${remainingAfter}`);
+          logger.info(`[Socket.io] Auto-playing next song in schedule...`);
 
-          // Trigger next song in schedule
-          const PlaybackState = require('../models').PlaybackState;
-          const playbackStateRecord = await PlaybackState.getCurrent();
-          const volume = playbackStateRecord.volume;
+          try {
+            // Trigger next song in schedule
+            const PlaybackState = require('../models').PlaybackState;
+            const playbackStateRecord = await PlaybackState.getCurrent();
+            const volume = playbackStateRecord.volume;
 
-          // Play next song using pre-fetched data if available
-          await schedulerService.playNextSongInSchedule(volume, schedulerService.getRemainingScheduleSongs() > 0);
+            logger.info(`[Socket.io] Calling playNextSongInSchedule with volume: ${volume}, autoNext: ${remainingAfter > 0}`);
+            // Play next song using pre-fetched data if available
+            await schedulerService.playNextSongInSchedule(volume, remainingAfter > 0);
+            logger.info(`[Socket.io] playNextSongInSchedule completed successfully`);
 
-          return; // Don't clear state, next song will play
+            return; // Don't clear state, next song will play
+          } catch (error) {
+            logger.error(`[Socket.io] Error playing next song in schedule:`, error);
+            // Fall through to clear state on error
+          }
         }
 
         // No more songs in schedule - clear state
-        logger.info(`[Socket.io] No more songs in schedule, clearing playback state`);
+        logger.info(`[Socket.io] No more songs in schedule (or error occurred), clearing playback state`);
 
         // Clear currently playing song
         currentlyPlayingSong = null;
