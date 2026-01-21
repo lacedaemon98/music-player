@@ -452,17 +452,17 @@ router.post('/stop', isAdmin, async (req, res) => {
   try {
     logger.info('[Playback] ===== STOP REQUESTED =====');
 
-    // FIRST: Update database (source of truth) - DB is checked first in resume logic
+    // FIRST: Clear cached playback data (instant, synchronous - prevents resume immediately)
+    clearPlaybackData();
+    logger.info('[Playback] Cleared playback cache (lastPlayedSongData, currentlyPlayingSong)');
+
+    // SECOND: Update database (source of truth - async operation)
     const playbackState = await PlaybackState.getCurrent();
     playbackState.current_song_id = null;
     playbackState.is_playing = false;
     playbackState.position = 0;
     await playbackState.save();
     logger.info('[Playback] Updated database - is_playing: false, song_id: null');
-
-    // SECOND: Clear cached playback data (prevent resume from cache)
-    clearPlaybackData();
-    logger.info('[Playback] Cleared playback cache (lastPlayedSongData, currentlyPlayingSong)');
 
     // THIRD: Reset schedule counter (stop any ongoing schedule)
     const schedulerService = require('../services/scheduler');

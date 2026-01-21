@@ -137,9 +137,32 @@ function setupSocket(io) {
       if (socket.isAdmin && isActiveAdmin(socket.id)) {
         logger.info(`[Socket.io] Admin requesting playback state for resume`);
 
-        // CRITICAL: Check database FIRST (source of truth)
+        // CRITICAL: Check cache FIRST (instant, synchronous check)
+        // If cache is cleared (by stop button), don't resume even if DB not updated yet
+        if (!lastPlayedSongData) {
+          logger.info(`[Socket.io] No cached playback data - not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
+
+        // Check if cached data is recent (within last 10 minutes)
+        if (Date.now() - lastPlayedSongData.timestamp > 10 * 60 * 1000) {
+          logger.info(`[Socket.io] Cached data too old (${Math.floor((Date.now() - lastPlayedSongData.timestamp) / 1000)}s), not resuming`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
+
+        // Cache exists and is recent - double-check database (source of truth)
         const PlaybackState = require('../models').PlaybackState;
-        const dbState = await PlaybackState.getCurrent();
+        const dbState = await PlaybackState.findOne({
+          raw: false // Need instance methods
+        });
+
+        if (!dbState) {
+          logger.error(`[Socket.io] No playback state found in database`);
+          socket.emit('playback_state', { stage: 'idle', song: null });
+          return;
+        }
 
         // If database says not playing or no song, don't resume
         if (!dbState.is_playing || !dbState.current_song_id) {
@@ -148,21 +171,7 @@ function setupSocket(io) {
           return;
         }
 
-        // Database says playing - check if we have cached data
-        if (!lastPlayedSongData) {
-          logger.info(`[Socket.io] Database says playing but no cached data - sending idle state`);
-          socket.emit('playback_state', { stage: 'idle', song: null });
-          return;
-        }
-
-        // Check if data is recent (within last 10 minutes)
-        if (Date.now() - lastPlayedSongData.timestamp > 10 * 60 * 1000) {
-          logger.info(`[Socket.io] Cached data too old, not resuming`);
-          socket.emit('playback_state', { stage: 'idle', song: null });
-          return;
-        }
-
-        // All checks passed - send cached data for resume
+        // All checks passed (cache exists + recent + DB confirms playing) - send cached data for resume
         logger.info(`[Socket.io] All checks passed - sending cached play_song data for reconnect (song: ${lastPlayedSongData.song.title})`);
 
         socket.emit('play_song', {
