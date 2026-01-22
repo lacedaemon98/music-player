@@ -534,6 +534,16 @@ class SchedulerService {
       // Use cached stream URL or fallback to proxy
       const finalStreamUrl = streamUrl || `/api/playback/stream/${song.id}`;
 
+      // Update PlaybackState in database (so admin can resume if autoplay blocked)
+      const PlaybackState = require('../models').PlaybackState;
+      const playbackState = await PlaybackState.getCurrent();
+      playbackState.current_song_id = song.id;
+      playbackState.is_playing = true;
+      playbackState.position = 0;
+      playbackState.volume = volume;
+      await playbackState.save();
+      logger.info(`[Scheduler] Updated PlaybackState in DB (song_id: ${song.id}, volume: ${volume})`);
+
       // Broadcast play event with cached announcement data
       if (this.io) {
         if (announcementData) {
@@ -646,6 +656,16 @@ class SchedulerService {
           logger.error('[Scheduler] Announcement generation failed, continuing without it:', error);
         }
       }
+
+      // Update PlaybackState in database (so admin can resume if autoplay blocked)
+      const PlaybackState = require('../models').PlaybackState;
+      const playbackState = await PlaybackState.getCurrent();
+      playbackState.current_song_id = topSong.id;
+      playbackState.is_playing = true;
+      playbackState.position = 0;
+      playbackState.volume = volume;
+      await playbackState.save();
+      logger.info(`[Scheduler] Updated PlaybackState in DB (song_id: ${topSong.id}, volume: ${volume})`);
 
       // THIS IS THE KEY! Broadcast play event via Socket.io
       // This works in Node.js but failed in Flask!
@@ -971,6 +991,16 @@ class SchedulerService {
 
         // Song already marked as played during pre-fetch, no need to mark again
         logger.info(`[Scheduler] Playing pre-fetched song: ${song.title}`);
+
+        // Update PlaybackState in database
+        const PlaybackState = require('../models').PlaybackState;
+        const playbackState = await PlaybackState.getCurrent();
+        playbackState.current_song_id = song.id;
+        playbackState.is_playing = true;
+        playbackState.position = 0;
+        playbackState.volume = volume;
+        await playbackState.save();
+        logger.info(`[Scheduler] Updated PlaybackState in DB (song_id: ${song.id})`);
 
         // Broadcast play event
         if (this.io) {
