@@ -522,58 +522,101 @@ router.get('/stream/:song_id', async (req, res) => {
       return res.status(404).send('Song not found');
     }
 
-    logger.info(`[Playback] Getting stream URL for: ${song.title}`);
+    logger.info(`[Playback] Proxying stream for: ${song.title}`);
 
     // Check cache first
     const cacheKey = `stream_url:${song.youtube_url}`;
-    const cachedUrl = cache.get(cacheKey);
+    let directUrl = cache.get(cacheKey);
 
-    if (cachedUrl) {
-      logger.info(`[Playback] Using cached stream URL for: ${song.title}`);
-      return res.redirect(cachedUrl);
+    if (!directUrl) {
+      // Cache miss - extract using YouTube service
+      logger.info(`[Playback] Cache miss - extracting stream URL for: ${song.title}`);
+      const youtubeService = require('../services/youtube');
+
+      try {
+        directUrl = await youtubeService.getStreamUrl(song.youtube_url);
+
+        if (!directUrl) {
+          throw new Error('Empty stream URL returned');
+        }
+
+        cache.set(cacheKey, directUrl, 5 * 60 * 1000);
+        logger.info(`[Playback] Got and cached stream URL for: ${song.title}`);
+
+      } catch (ytError) {
+        // YouTube streaming failed - try to fallback to offline music
+        logger.error(`[Playback] YouTube stream failed for ${song.title}:`, ytError.message);
+        logger.info('[Playback] Attempting to fallback to offline music');
+
+        const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
+
+        if (!offlineMusic) {
+          logger.error('[Playback] No offline music available for fallback');
+          return res.status(500).send('Failed to get stream URL and no offline music available');
+        }
+
+        // Redirect to offline music instead
+        logger.info(`[Playback] Falling back to offline music: ${offlineMusic.title}`);
+        return res.redirect(`/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`);
+      }
     }
 
-    // Cache miss - extract using YouTube service (90 second timeout)
-    logger.info(`[Playback] Cache miss - extracting stream URL for: ${song.title}`);
-    const youtubeService = require('../services/youtube');
+    // PROXY the stream through our server (fixes IP mismatch 403 errors)
+    const https = require('https');
+    const http = require('http');
+    const url = require('url');
 
-    try {
-      // Use YouTube service with proper timeout handling (90 seconds)
-      const directUrl = await youtubeService.getStreamUrl(song.youtube_url);
+    const parsedUrl = url.parse(directUrl);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
-      if (!directUrl) {
-        throw new Error('Empty stream URL returned');
-      }
+    // Forward range headers for seeking support
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    };
 
-      // URL is already cached by YouTube service, but cache again here with same key
-      cache.set(cacheKey, directUrl, 5 * 60 * 1000);
-
-      logger.info(`[Playback] Got and cached stream URL for: ${song.title}`);
-
-      // Redirect to direct URL (supports range requests for seeking)
-      return res.redirect(directUrl);
-
-    } catch (ytError) {
-      // YouTube streaming failed - try to fallback to offline music
-      logger.error(`[Playback] YouTube stream failed for ${song.title}:`, ytError.message);
-      logger.error(`[Playback] Error details: ${ytError.stack || 'No stack trace'}`);
-      logger.info('[Playback] Attempting to fallback to offline music');
-
-      const offlineMusic = await offlineMusicService.getRandomOfflineMusic();
-
-      if (!offlineMusic) {
-        logger.error('[Playback] No offline music available for fallback');
-        return res.status(500).send('Failed to get stream URL and no offline music available');
-      }
-
-      // Redirect to offline music instead
-      logger.info(`[Playback] Falling back to offline music: ${offlineMusic.title}`);
-      return res.redirect(`/api/playback/stream-offline/${encodeURIComponent(offlineMusic.filename)}`);
+    if (req.headers.range) {
+      headers['Range'] = req.headers.range;
     }
+
+    logger.info(`[Playback] Proxying stream with range: ${req.headers.range || 'none'}`);
+
+    const proxyReq = protocol.request(directUrl, { headers }, (proxyRes) => {
+      // Forward status code and headers
+      res.writeHead(proxyRes.statusCode, {
+        'Content-Type': proxyRes.headers['content-type'] || 'audio/webm',
+        'Content-Length': proxyRes.headers['content-length'],
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache'
+      });
+
+      // Add Content-Range if present (for seeking)
+      if (proxyRes.headers['content-range']) {
+        res.setHeader('Content-Range', proxyRes.headers['content-range']);
+      }
+
+      // Pipe YouTube response to browser
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (error) => {
+      logger.error(`[Playback] Proxy error for ${song.title}:`, error.message);
+      if (!res.headersSent) {
+        res.status(500).send('Stream proxy error');
+      }
+    });
+
+    // Handle client disconnect
+    req.on('close', () => {
+      proxyReq.destroy();
+    });
+
+    proxyReq.end();
 
   } catch (error) {
     logger.error('[Playback] Error in stream endpoint:', error.message);
-    res.status(500).send('Failed to get stream URL');
+    if (!res.headersSent) {
+      res.status(500).send('Failed to get stream URL');
+    }
   }
 });
 
