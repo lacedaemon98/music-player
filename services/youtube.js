@@ -35,7 +35,8 @@ class YouTubeService {
         {
           encoding: 'utf-8',
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 30000 // 30 second timeout
+          timeout: 30000, // 30 second timeout
+          env: { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` }
         }
       );
 
@@ -88,7 +89,8 @@ class YouTubeService {
         {
           encoding: 'utf-8',
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 90000 // 90 second timeout for slow extraction
+          timeout: 90000, // 90 second timeout for slow extraction
+          env: { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` }
         }
       );
 
