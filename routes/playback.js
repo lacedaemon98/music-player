@@ -327,14 +327,12 @@ router.post('/next', isAdmin, async (req, res) => {
 
     if (topSong.youtube_url) {
       try {
-        logger.info('[Playback] Pre-extracting YouTube stream URL for instant playback...');
+        logger.info('[Playback] Pre-extracting YouTube stream URL (caching for proxy)...');
         const youtubeService = require('../services/youtube');
-        const directStreamUrl = await youtubeService.getStreamUrl(topSong.youtube_url);
-        streamUrl = directStreamUrl; // Use direct URL instead of proxy
-        logger.info('[Playback] Pre-extraction successful, stream ready for instant playback');
+        await youtubeService.getStreamUrl(topSong.youtube_url); // Pre-extract to cache, but use proxy
+        logger.info('[Playback] Stream URL cached successfully, will use proxy endpoint');
       } catch (error) {
-        logger.error('[Playback] Pre-extraction failed, will use proxy:', error.message);
-        logger.error('[Playback] Pre-extraction error details:', error.stack || 'No stack trace');
+        logger.error('[Playback] Pre-extraction failed:', error.message);
         // Fall back to proxy URL (will try extraction again in /stream endpoint)
       }
     }
