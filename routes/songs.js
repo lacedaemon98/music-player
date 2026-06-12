@@ -444,4 +444,83 @@ router.post('/:id/back-to-queue', isAdmin, async (req, res) => {
   }
 });
 
+// Set total vote count for a song (admin only)
+// Inserts/removes real vote rows so the count looks identical to normal votes
+router.post('/:id/set-votes', isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const songId = parseInt(req.params.id);
+    const target = parseInt(req.body.count);
+
+    if (isNaN(target) || target < 0 || target > 100000) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Số vote không hợp lệ (0 - 100000)'
+      });
+    }
+
+    const song = await Song.findByPk(songId, { transaction });
+
+    if (!song) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy bài nào như thế bạn êi :'("
+      });
+    }
+
+    const currentCount = await Vote.count({
+      where: { song_id: songId },
+      transaction
+    });
+
+    const delta = target - currentCount;
+
+    if (delta > 0) {
+      // Add votes (use admin's user id, indistinguishable from normal votes)
+      const rows = Array.from({ length: delta }, () => ({
+        user_id: req.user.id,
+        song_id: songId
+      }));
+      await Vote.bulkCreate(rows, { transaction });
+    } else if (delta < 0) {
+      // Remove the newest votes first so the oldest (genuine) votes are kept
+      const toRemove = await Vote.findAll({
+        where: { song_id: songId },
+        order: [['voted_at', 'DESC']],
+        limit: -delta,
+        attributes: ['id'],
+        transaction
+      });
+      await Vote.destroy({
+        where: { id: toRemove.map(v => v.id) },
+        transaction
+      });
+    }
+
+    await transaction.commit();
+
+    logger.info(`[Songs] Admin ${req.user.display_name} set votes for "${song.title}": ${currentCount} -> ${target}`);
+
+    // Broadcast queue update so everyone sees the new count
+    const io = req.app.get('io');
+    io.emit('queue_updated');
+
+    res.json({
+      success: true,
+      vote_count: target,
+      message: `Đã set ${target} vote cho bài này`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    logger.error('[Songs] Error setting votes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi set vote'
+    });
+  }
+});
+
 module.exports = router;

@@ -2545,6 +2545,9 @@
               <i class="bi bi-hand-thumbs-up-fill"></i>
               <span>${s.vote_count}</span>
             </div>
+            <button class="btn btn-sm btn-outline-info" onclick="setVotes(${s.id}, ${s.vote_count})" title="Set số vote cho bài này" style="margin-right: 0.5rem;">
+              <i class="bi bi-123"></i>
+            </button>
             <button class="btn btn-sm ${s.starred ? 'btn-warning' : 'btn-outline-secondary'}" onclick="toggleStar(${s.id})" title="${s.starred ? 'Bỏ ưu tiên' : 'Đánh dấu ưu tiên (lên đầu queue)'}" style="margin-right: 0.5rem;">
               <i class="bi bi-star-fill"></i>
             </button>
@@ -3357,6 +3360,35 @@
       } catch (error) {
         console.error('[Admin] Error re-parsing song:', error);
         alert('Không thể parse lại metadata');
+      }
+    }
+
+    async function setVotes(id, currentCount) {
+      const input = prompt('Nhập số vote cho bài này:', currentCount);
+      if (input === null) return; // cancelled
+
+      const count = parseInt(input, 10);
+      if (isNaN(count) || count < 0) {
+        alert('Số vote không hợp lệ');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/songs/${id}/set-votes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          loadQueue();
+        } else {
+          alert('Lỗi: ' + data.message);
+        }
+      } catch (error) {
+        console.error('[Admin] Error setting votes:', error);
+        alert('Không thể set vote');
       }
     }
 
