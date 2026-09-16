@@ -35,7 +35,7 @@ const CHANNEL_NOISE = /\s*[-–|/]?\s*\b(official|officiel|vevo|topic|music|musi
 const CHANNEL_NOISE_PREFIX = /^\s*official\s*/i;
 
 // Bracketed junk: [Official MV], (Official Video), 【MV】, [Vietsub], (Lyrics)…
-const BRACKET_NOISE = /[[(【（]\s*[^)\]】）]*\b(official|vietsub|engsub|kara|karaoke|lyrics?|lyric\s*video|audio|m\/?v|music\s*video|visual|visualizer|performance|dance\s*ver|colou?r\s*coded|han\/rom\/eng|pinyin|full\s*hd|hd|4k|fhd|teaser|trailer|reaction|ost|original|prod\.?\s*by)\b[^)\]】）]*\s*[)\]】）]/gi;
+const BRACKET_NOISE = /[[(【（「]\s*[^)\]】）」]*\b(official|vietsub|engsub|kara|karaoke|lyrics?|lyric\s*video|audio|m\/?v|music\s*video|visual|visualizer|performance|dance\s*ver|colou?r\s*coded|han\/rom\/eng|pinyin|full\s*hd|hd|4k|fhd|teaser|trailer|reaction|ost|original|prod\.?\s*by)\b[^)\]】）」]*\s*[)\]】）」]/gi;
 
 // The same junk when it is not bracketed at all.
 const BARE_NOISE = /\b(official\s*(music\s*)?(video|audio|mv|m\/v|lyric\s*video|visualizer)|music\s*video|lyric\s*video|colou?r\s*coded\s*lyrics?|official|m\/v|mv\s*fanmade|fanmade|vietsub|engsub|4k\s*remaster(ed)?|audio\s*chính\s*thức)\b/gi;
@@ -82,6 +82,26 @@ function artistFromChannel(channel) {
   if (!name || name.length < 2) return null;
   if (NON_ARTIST_CHANNELS.has(artistKey(name))) return null;
   return ARTIST_BY_KEY.get(artistKey(name)) || name;
+}
+
+/**
+ * Last resort when nothing in the title names a performer. A label or TV show
+ * name is still more use on screen than "Unknown Artist"; the block list only
+ * stops it outranking a real artist, not from filling an otherwise empty field.
+ */
+function fallbackArtist(channel) {
+  return cleanChannelName(channel) || 'Unknown Artist';
+}
+
+// Packaging that occasionally survives into the artist slot when a title has no
+// real performer in it, e.g. `… | MV Bài hát Chủ đề "Anh Trai Vượt Ngàn…"`.
+const NOT_A_NAME = /\b(mv|music\s*video|bài\s*hát|chủ\s*đề|nhạc\s*phim|ost|official|lyrics?|teaser|trailer|tập\s*\d+|ep\.?\s*\d+)\b/i;
+
+/** Reject strings that are plainly packaging rather than a performer. */
+function looksLikeArtistName(name) {
+  const value = String(name || '').trim();
+  if (!value || value.length > 60) return false;
+  return !NOT_A_NAME.test(value);
 }
 
 /** Remove promo packaging from a raw YouTube title. */
@@ -285,7 +305,11 @@ function resolveParts(youtubeTitle, uploaderName) {
       // "PERFORMER 'Song Name'" is reliably artist-first, which is how the K-pop
       // labels title everything, so the lead is the artist even when it is a
       // name we have never seen (TXT, NCT 127, SUPER JUNIOR-D&E).
-      if (lead && !SEGMENT_IS_NOISE.test(lead)) {
+      //
+      // A lead spanning a separator is not a performer though - it is the rest
+      // of the title, as in `Hỏa Ca (…) | MV Bài hát Chủ đề "Anh Trai …"`.
+      const leadIsName = lead && !/[|｜]/.test(lead) && !SEGMENT_IS_NOISE.test(lead);
+      if (leadIsName) {
         const moved = moveFeatures(song, canonicalizeArtist(lead));
         return { title: normalizeProperCase(moved.title), artist: moved.artist };
       }
@@ -295,7 +319,7 @@ function resolveParts(youtubeTitle, uploaderName) {
   if (segments.length === 0) {
     return {
       title: normalizeProperCase(stripNoise(youtubeTitle)) || String(youtubeTitle || '').trim(),
-      artist: channelArtist ? canonicalizeArtist(channelArtist) : 'Unknown Artist',
+      artist: channelArtist ? canonicalizeArtist(channelArtist) : fallbackArtist(uploaderName),
     };
   }
 
@@ -303,7 +327,7 @@ function resolveParts(youtubeTitle, uploaderName) {
   if (segments.length === 1) {
     return {
       title: normalizeProperCase(segments[0]),
-      artist: channelArtist ? canonicalizeArtist(channelArtist) : 'Unknown Artist',
+      artist: channelArtist ? canonicalizeArtist(channelArtist) : fallbackArtist(uploaderName),
     };
   }
 
@@ -321,7 +345,7 @@ function resolveParts(youtubeTitle, uploaderName) {
   const rawArtist = vietnamese ? second : first;
   const moved = moveFeatures(
     rawTitle,
-    canonicalizeArtist(rawArtist) || (channelArtist ? canonicalizeArtist(channelArtist) : 'Unknown Artist')
+    canonicalizeArtist(rawArtist) || (channelArtist ? canonicalizeArtist(channelArtist) : fallbackArtist(uploaderName))
   );
 
   return { title: normalizeProperCase(moved.title), artist: moved.artist };
@@ -329,7 +353,11 @@ function resolveParts(youtubeTitle, uploaderName) {
 
 function parseSongTitle(youtubeTitle, uploaderName) {
   const parts = resolveParts(youtubeTitle, uploaderName);
-  return { title: trimQuotes(parts.title), artist: tidyArtist(trimQuotes(parts.artist)) };
+  const artist = tidyArtist(trimQuotes(parts.artist));
+  return {
+    title: trimQuotes(parts.title),
+    artist: looksLikeArtistName(artist) ? artist : fallbackArtist(uploaderName),
+  };
 }
 
 /**

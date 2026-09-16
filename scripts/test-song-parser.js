@@ -40,6 +40,16 @@ const CASES = [
   // Channel spelled with diacritics, title without.
   ['Mason Nguyen - imissu2 [feat. buitruonglinh, CONGB] | Official Audio', 'Mason Nguyễn', 'imissu2', 'Mason Nguyễn ft. buitruonglinh, CONGB'],
 
+  // A quoted show name is not a performer - the lead here spans a "|", so it is
+  // the rest of the title rather than an artist.
+  ['Hỏa Ca (Call Me By Fire) | MV Bài hát Chủ đề "Anh Trai Vượt Ngàn Chông Gai 2024"', 'Yeah1 Music', 'Hỏa Ca (Call Me By Fire)', 'Yeah1'],
+
+  // Full-width 「」 brackets are packaging too.
+  ['Chờ Ngày Mưa Tan - Noo Phước Thịnh「Official Lyrics Video」', 'Noo Phước Thịnh', 'Chờ Ngày Mưa Tan', 'Noo Phước Thịnh'],
+
+  // Nothing in the title names anyone: a show name beats "Unknown Artist".
+  ['Dạt Vào Tim Em', 'Anh Trai Vượt Ngàn Chông Gai', 'Dạt Vào Tim Em', 'Anh Trai Vượt Ngàn Chông Gai'],
+
   // Stylised capitalisation survives; shouty Vietnamese titles get tidied.
   ['VŨ THUỲ LINH – TRỘM VÍA | OFFICIAL MUSIC VIDEO | Em Là Cô Dâu Việt Nam', 'Vũ Thuỳ Linh Official', 'Trộm Vía', 'Vũ Thuỳ Linh'],
   ['PSY - GANGNAM STYLE(강남스타일) M/V', 'officialpsy', 'Gangnam Style(강남스타일)', 'PSY'],
