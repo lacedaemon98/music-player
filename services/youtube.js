@@ -50,7 +50,9 @@ class YouTubeService {
         thumbnail_url: info.thumbnail || '',
         duration: parseInt(info.duration) || 0,
         youtube_url: url,
-        youtube_id: info.id
+        youtube_id: info.id,
+        youtube_title: info.title,
+        youtube_channel: info.uploader || info.channel || ''
       };
     } catch (error) {
       logger.error('[YouTube] Error getting video info:', error.message);

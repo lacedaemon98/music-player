@@ -70,6 +70,17 @@ module.exports = (sequelize) => {
       allowNull: true,
       unique: true  // Prevent duplicate video IDs
     },
+    // Raw values as YouTube returned them, kept so metadata can be re-parsed
+    // later without refetching (the parser needs the channel to decide which
+    // half of "A - B" is the artist).
+    youtube_title: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    youtube_channel: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     duration: {
       type: DataTypes.INTEGER, // seconds
       allowNull: true

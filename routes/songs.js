@@ -195,6 +195,8 @@ router.post('/add', ipUserMiddleware, async (req, res) => {
       artist: videoInfo.artist,
       youtube_url: youtube_url,
       youtube_id: videoInfo.youtube_id,
+      youtube_title: videoInfo.youtube_title,
+      youtube_channel: videoInfo.youtube_channel,
       duration: videoInfo.duration,
       thumbnail_url: videoInfo.thumbnail_url,
       added_by: req.user.id,
@@ -309,7 +311,7 @@ router.post('/:id/restore', isAdmin, async (req, res) => {
   }
 });
 
-// Re-parse song metadata with Gemini AI (admin only)
+// Re-parse song metadata from the stored raw YouTube title (admin only)
 router.post('/:id/reparse', isAdmin, async (req, res) => {
   try {
     const song = await Song.findByPk(req.params.id);
@@ -326,8 +328,9 @@ router.post('/:id/reparse', isAdmin, async (req, res) => {
 
     logger.info(`[Songs] Re-parsing metadata for song ${song.id}: "${youtubeTitle}"`);
 
-    // Parse with Gemini AI
-    const parsed = await parseSongMetadata(youtubeTitle, song.artist);
+    // The channel decides which half of "A - B" is the artist. Fall back to the
+    // current artist only for rows added before youtube_channel was stored.
+    const parsed = await parseSongMetadata(youtubeTitle, song.youtube_channel || song.artist);
 
     // Update song metadata
     song.title = parsed.title;
