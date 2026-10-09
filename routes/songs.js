@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { Song, User, Vote, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { isAuthenticated, isAdmin, getOrCreateAnonymousUser } = require('../middleware/auth');
 const { ipUserMiddleware } = require('../middleware/ipUser');
 const youtubeService = require('../services/youtube');
 const { parseSongMetadata } = require('../services/song-parser');
+const { RECENTLY_PLAYED_RETENTION_DAYS } = require('../config/retention');
 const logger = require('../utils/logger');
 
 // Get queue (all unplayed songs with vote counts)
@@ -73,10 +75,20 @@ router.get('/queue', ipUserMiddleware, async (req, res) => {
 });
 
 // Get recently played songs
+// Only songs played within the retention window: the daily cleanup job deletes
+// older rows, and filtering here keeps them out of the list in the meantime.
 router.get('/recently-played', async (req, res) => {
   try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - RECENTLY_PLAYED_RETENTION_DAYS);
+
     const songs = await Song.findAll({
-      where: { played: true },
+      where: {
+        played: true,
+        played_at: {
+          [Op.gte]: cutoff
+        }
+      },
       include: [
         {
           model: User,

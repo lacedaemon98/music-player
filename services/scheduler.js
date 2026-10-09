@@ -1,8 +1,9 @@
 const schedule = require('node-schedule');
-const { Schedule, Song, Message, sequelize } = require('../models');
+const { Schedule, Song, Vote, PlaybackState, Message, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const youtubeService = require('./youtube');
 const offlineMusicService = require('./offlineMusic');
+const { RECENTLY_PLAYED_RETENTION_DAYS } = require('../config/retention');
 const logger = require('../utils/logger');
 
 class SchedulerService {
@@ -40,16 +41,18 @@ class SchedulerService {
 
       logger.info(`[Scheduler] Initialized with ${schedules.length} active schedules`);
 
-      // Setup daily cleanup job for old chat messages (every day at 3 AM)
+      // Setup daily cleanup job for old chat messages and played songs (every day at 3 AM)
       schedule.scheduleJob('0 3 * * *', async () => {
-        logger.info('[Scheduler] Running daily chat cleanup...');
+        logger.info('[Scheduler] Running daily cleanup...');
         await this.cleanupOldMessages();
+        await this.cleanupOldPlayedSongs();
       });
 
-      logger.info('[Scheduler] Daily chat cleanup job scheduled for 3 AM');
+      logger.info('[Scheduler] Daily cleanup job scheduled for 3 AM');
 
       // Run cleanup once on startup
       await this.cleanupOldMessages();
+      await this.cleanupOldPlayedSongs();
     } catch (error) {
       logger.error('[Scheduler] Initialization error:', error);
     }
@@ -76,6 +79,54 @@ class SchedulerService {
       }
     } catch (error) {
       logger.error('[Scheduler] Error cleaning up messages:', error);
+    }
+  }
+
+  /**
+   * Cleanup played songs older than the recently-played retention window
+   * (3 days), so the "recently played" list clears itself out.
+   */
+  async cleanupOldPlayedSongs() {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - RECENTLY_PLAYED_RETENTION_DAYS);
+
+      // A NULL played_at never satisfies "< cutoff", so songs with no timestamp
+      // are left alone rather than deleted on a guess.
+      const where = {
+        played: true,
+        played_at: {
+          [Op.lt]: cutoff
+        }
+      };
+
+      // Never delete the song playback still points at, or playback_state is
+      // left with a dangling current_song_id.
+      const state = await PlaybackState.findOne();
+      if (state && state.current_song_id) {
+        where.id = { [Op.ne]: state.current_song_id };
+      }
+
+      const staleSongs = await Song.findAll({ where, attributes: ['id'] });
+
+      if (staleSongs.length === 0) {
+        return;
+      }
+
+      const staleIds = staleSongs.map(s => s.id);
+
+      // Votes reference songs, so they have to go first (same order the admin
+      // delete endpoint uses) to avoid a foreign key constraint error.
+      await Vote.destroy({ where: { song_id: staleIds } });
+      const deleted = await Song.destroy({ where: { id: staleIds } });
+
+      logger.info(`[Scheduler] Cleanup: Deleted ${deleted} played songs older than ${RECENTLY_PLAYED_RETENTION_DAYS} days`);
+
+      if (this.io) {
+        this.io.emit('recently_played_updated');
+      }
+    } catch (error) {
+      logger.error('[Scheduler] Error cleaning up played songs:', error);
     }
   }
 
